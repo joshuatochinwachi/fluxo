@@ -43,7 +43,7 @@ Week 2: Real API integration with these sources
 """
 
 # ... rest of your Social Agent code ...
-from typing import Optional, Dict
+
 # Update the _init_ method with Electus's keywords:
 def _init_(self, api_keys: Optional[Dict[str, str]] = None, 
              use_mock: bool = True):
