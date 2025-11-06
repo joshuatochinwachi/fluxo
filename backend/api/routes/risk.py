@@ -1,26 +1,15 @@
-
-"""
-Risk Analysis API Routes
-Endpoints for portfolio risk scoring and analysis
-"""
 from fastapi import APIRouter, HTTPException
-import logging
-
+from tasks.agent_tasks.risk_tasks import risk_task
+from celery.result import AsyncResult
+from core import celery_app
 from api.models.schemas import PortfolioInput, APIResponse
-from agents.risk_agent import RiskAgent
-
-logger = logging.getLogger(_name_)
 
 router = APIRouter()
 
-# Initialize Risk Agent
-risk_agent = RiskAgent()
-
-
-@router.post("/analyze")
-async def analyze_portfolio_risk(portfolio: PortfolioInput):
+@router.post('/analyze')
+async def analyze_risk(portfolio: PortfolioInput):
     """
-    Analyze portfolio risk for a given wallet address
+    Start risk analysis background task
     
     Request body:
     {
@@ -28,101 +17,76 @@ async def analyze_portfolio_risk(portfolio: PortfolioInput):
         "network": "mantle"
     }
     
-    Returns risk score, level, factors, and recommendations
+    Returns task_id to check progress
     """
     try:
-        logger.info(f"Analyzing portfolio for {portfolio.wallet_address}")
-        
-        # Call Risk Agent
-        risk_score = await risk_agent.analyze_portfolio(portfolio)
+        # Start background task
+        task = risk_task.delay(portfolio.wallet_address, portfolio.network)
         
         return APIResponse(
             success=True,
-            message="Risk analysis completed successfully",
-            data=risk_score.dict()
-        )
-        
-    except Exception as e:
-        logger.error(f"Risk analysis failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Risk analysis failed: {str(e)}"
-        )
-
-
-@router.get("/score/{wallet_address}")
-async def get_risk_score(wallet_address: str, network: str = "mantle"):
-    """
-    Quick risk score lookup (GET endpoint)
-    
-    Usage: GET /api/risk/score/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-    """
-    try:
-        portfolio = PortfolioInput(
-            wallet_address=wallet_address,
-            network=network
-        )
-        
-        risk_score = await risk_agent.analyze_portfolio(portfolio)
-        
-        return APIResponse(
-            success=True,
-            message="Risk score retrieved",
+            message="Risk analysis started",
             data={
-                "wallet": wallet_address,
-                "score": risk_score.score,
-                "level": risk_score.level.value,
-                "timestamp": risk_score.timestamp.isoformat()
+                "task_id": task.id,
+                "status": "processing",
+                "wallet_address": portfolio.wallet_address,
+                "check_status": f"/agent/risk/status/{task.id}"
             }
         )
-        
     except Exception as e:
-        logger.error(f"Failed to get risk score: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to start task: {str(e)}")
 
 
-@router.get("/thresholds")
-async def get_risk_thresholds():
+@router.get('/status/{task_id}')
+async def get_risk_status(task_id: str):
     """
-    Get current risk calculation thresholds and weights
-    Useful for understanding how risk scores are calculated
+    Get risk analysis task status and results
+    
+    Returns:
+    - PENDING: Task waiting to start
+    - PROCESSING: Task running
+    - SUCCESS: Task completed with results
+    - FAILURE: Task failed with error
     """
+    task_result = AsyncResult(task_id, app=celery_app)
+    
+    response_data = {
+        'task_id': task_id,
+        'status': task_result.state.lower()
+    }
+    
+    if task_result.state == 'PENDING':
+        response_data['message'] = 'Task is queued and waiting to start'
+        
+    elif task_result.state == 'PROCESSING':
+        # Get progress info if available
+        info = task_result.info or {}
+        response_data['progress'] = info.get('progress', 0)
+        response_data['message'] = info.get('status', 'Processing...')
+        
+    elif task_result.state == 'SUCCESS':
+        response_data['result'] = task_result.result
+        response_data['message'] = 'Risk analysis completed successfully'
+        
+    elif task_result.state == 'FAILURE':
+        response_data['error'] = str(task_result.info)
+        response_data['message'] = 'Risk analysis failed'
+    
     return APIResponse(
         success=True,
-        message="Risk calculation parameters",
-        data={
-            "weights": {
-                "concentration": risk_agent.weights["concentration"],
-                "liquidity": risk_agent.weights["liquidity"],
-                "volatility": risk_agent.weights["volatility"],
-                "contract": risk_agent.weights["contract"]
-            },
-            "thresholds": risk_agent.thresholds,
-            "risk_levels": {
-                "low": "0-30",
-                "medium": "30-50",
-                "high": "50-70",
-                "critical": "70-100"
-            }
-        }
+        message="Task status retrieved",
+        data=response_data
     )
 
 
-@router.get("/")
-async def risk_agent_status():
-    """
-    Health check for Risk Agent
-    """
+@router.get('/risk')
+async def risk_health():
+    """Health check endpoint"""
     return {
-        "agent": "risk",
-        "status": "operational",
-        "version": "1.0.0",
-        "endpoints": [
-            "POST /analyze - Full portfolio risk analysis",
-            "GET /score/{wallet} - Quick risk score",
-            "GET /thresholds - Risk calculation parameters"
+        'agent': 'risk',
+        'status': 'operational',
+        'endpoints': [
+            'POST /agent/risk/analyze - Start risk analysis',
+            'GET /agent/risk/status/{task_id} - Check task status'
         ]
     }
