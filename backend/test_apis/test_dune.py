@@ -2,6 +2,11 @@
 
 import requests
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv
+API_KEY = os.getenv('DUNE_KEY')
 
 def test_dune():
     """Test Dune Analytics API"""
@@ -10,7 +15,7 @@ def test_dune():
     print("=" * 60)
     
     # You need to sign up and get API key first
-    API_KEY = "your_dune_api_key"  # Get from dune.com
+    # API_KEY = "your_dune_api_key"  # Get from dune.com
     
     # Test with public query
     query_id = "3238044"
