@@ -2,6 +2,11 @@
 
 import requests
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv
+API_KEY = os.getenv('FLIPSIDE_KEY')
 
 def test_flipside():
     """Test Flipside Crypto API"""
@@ -11,7 +16,7 @@ def test_flipside():
     
     # Flipside API endpoint
     # Sign up at flipsidecrypto.xyz for API key
-    API_KEY = "your_flipside_key"
+    # API_KEY = "your_flipside_key"
     
     url = "https://api-v2.flipsidecrypto.xyz/json-rpc"
     
