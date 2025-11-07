@@ -11,7 +11,7 @@
 
 
 from fastapi import APIRouter
-from tasks import automation_task
+#from tasks import automation_task #TODO: create task first
 
 from celery.result import AsyncResult
 from core import celery_app
