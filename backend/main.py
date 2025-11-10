@@ -19,7 +19,9 @@ from api import (
     risk_router,
     x402_router,
     yield_router,
-    social_router
+    social_router,
+    alerts_router
+
 )
 
 
@@ -51,6 +53,7 @@ app.include_router(x402_router,prefix='/agent')
 app.include_router(onchain_router,prefix='/agent')
 app.include_router(yield_router,prefix='/agent')
 app.include_router(social_router,prefix='/agent')
+app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
 
 # CORS middleware
 app.add_middleware(
