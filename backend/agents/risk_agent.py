@@ -74,7 +74,7 @@ class RiskAgent:
     4. Protocol safety classifications
     """
     
-    def _init_(self):
+    def __init__(self):
         # Risk score weights (optimized based on Electus's feedback)
         self.weights = {
             "concentration": 0.30,   # Reduced slightly
@@ -132,7 +132,7 @@ class RiskAgent:
         self.thresholds = {
             "high_concentration": 40,      # % in single asset
             "very_high_concentration": 60, # Critical concentration
-            "low_liquidity_usd": 100_000,  # Below = high risk
+            "low_liquidity_usd": 100000,  # Below = high risk
             "high_volatility": 0.05,       # Daily 5% = high vol
             "min_diversification": 3       # Minimum # of assets
         }
