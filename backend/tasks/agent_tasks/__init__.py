@@ -10,6 +10,7 @@ from .risk_task import risk_task
 from .social_task import social_task
 from .x402_task import x402_task
 from .yield_task import yield_task
+from .whale_task import whale_task
 
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     'risk_task',
     'social_task',
     'x402_task',
-    'yield_task'
+    'yield_task',
+    'whale_task'
 ]
