@@ -33,3 +33,4 @@ class MantleAPI:
         decimals = await token_contract.functions.decimals().call()
         adjusted_balance = balance / (10 ** decimals)
         return adjusted_balance
+

@@ -10,7 +10,7 @@
 
 
 from fastapi import APIRouter
-from tasks import yield_task
+from tasks.agent_tasks import yield_task
 
 from celery.result import AsyncResult
 from core import celery_app

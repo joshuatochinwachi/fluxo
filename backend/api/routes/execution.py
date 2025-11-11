@@ -16,7 +16,7 @@ from fastapi import APIRouter
 
 from celery.result import AsyncResult
 from core import celery_app
-
+from tasks.agent_tasks import execution_task
 router = APIRouter()
 
 @router.get('/execution')

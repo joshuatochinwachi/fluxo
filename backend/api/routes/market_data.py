@@ -12,7 +12,7 @@
 
 
 from fastapi import APIRouter
-from tasks import market_data_task
+from tasks.agent_tasks import market_data_task
 
 from celery.result import AsyncResult
 from core import celery_app

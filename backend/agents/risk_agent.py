@@ -223,7 +223,16 @@ class RiskAgent:
         Fetch portfolio with protocol information
         TODO Week 3: Real data from Freeman's data_pipeline
         """
+<<<<<<< HEAD
         # Enhanced mock data with protocol info
+=======
+
+        """"
+        Check service/dune_service.py for real implementation
+        Checkout example.py for usage sample
+        """
+        # Mock portfolio for testing
+>>>>>>> d2705d0 (Token Transfer Flow)
         mock_assets = [
             PortfolioAsset(
                 token_symbol="mETH",

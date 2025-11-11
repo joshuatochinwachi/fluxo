@@ -43,7 +43,7 @@ async def _fetch_yield_protocols(session)->dict:
         return protocols_datas
        
 
-# Fetch yield protocols on Mantle chain
+# Fetch yield protocols on Mantle chain [Entry]
 async def fetch_mantle_yield_protocols()->dict:
     async with aiohttp.ClientSession() as session:
         protocols_datas = await _fetch_yield_protocols(session)

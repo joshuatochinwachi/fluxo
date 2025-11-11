@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from tasks.agent_tasks.social_tasks import social_task
+from tasks.agent_tasks import social_task
 from celery.result import AsyncResult
 from core import celery_app
 from api.models.schemas import APIResponse

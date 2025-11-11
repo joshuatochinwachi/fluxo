@@ -1,14 +1,15 @@
 from celery import Celery
+from .config import Settings
 
-from .config import CELERY_BROKER_URL, CELERY_RESULT_BACKEND
+settings = Settings()
 
 
 # Create the Celery app using URLs defined in `core.config` so credentials
 # and hosts can be managed through environment variables.
 celery_app = Celery(
     "Backend-Worker",
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND,
+    broker=settings.celery_broker_url,
+    backend=settings.celery_broker_url,
     include=[
         'tasks.agent_tasks.onchain_task',
         'tasks.agent_tasks.automation_task',
@@ -27,6 +28,6 @@ celery_app = Celery(
 
 # Also allow programmatic updates from CELERY_CONFIG if needed elsewhere.
 celery_app.conf.update({
-    'broker_url': CELERY_BROKER_URL,
-    'result_backend': CELERY_RESULT_BACKEND,
+    'broker_url': settings.celery_broker_url,
+    'result_backend': settings.celery_broker_url,
 })

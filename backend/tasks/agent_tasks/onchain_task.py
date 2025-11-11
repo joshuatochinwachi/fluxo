@@ -4,3 +4,4 @@ from core import celery_app
 def onchain_task()->bool:
     print('Running ochain task...')
     return {'Onchain_task':'started'}
+

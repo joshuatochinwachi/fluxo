@@ -1,10 +1,15 @@
 """
 Fluxo - AI Automation-as-a-Service for Web3 Intelligence
 """
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+
 import logging
 import uvicorn
+import asyncio
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from api.routes.onchain import user_subscribed_tokens_update
 
 # Import Routes
 from api import (
@@ -24,7 +29,6 @@ from api import (
 
 )
 
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -32,8 +36,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("🚀 Starting Redis listener for whale updates")
+    listener_task = asyncio.create_task(user_subscribed_tokens_update())
+
+    yield
+
+    # Shutdown
+    listener_task.cancel()
+    print("🛑 Stopped Redis listener")
+
 # Initialize FastAPI app
 app = FastAPI(
+    lifespan=lifespan,
     title="Fluxo API",
     description="AI Automation-as-a-Service for Web3 Intelligence",
     version="0.1.0"
@@ -54,6 +71,7 @@ app.include_router(onchain_router,prefix='/agent')
 app.include_router(yield_router,prefix='/agent')
 app.include_router(social_router,prefix='/agent')
 app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
+
 
 # CORS middleware
 app.add_middleware(

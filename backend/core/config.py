@@ -14,28 +14,30 @@ Redis broker/result backend:
 """
 
 import os
+from pathlib import Path
 from typing import Final
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+import redis
 
-# Celery broker and result backend. Prefer setting these in the environment
-# - CELERY_BROKER_URL
-# - CELERY_RESULT_BACKEND
+BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_PATH = BASE_DIR / '.env'
 
-CELERY_BROKER_URL: Final[str] = os.getenv(
-		"CELERY_BROKER_URL", "redis://localhost:6379/0"
-)
+class Settings(BaseSettings):
+    celery_broker_url: str 
+    dune_api_key: str 
+    database_url: str
+    admin_email: str 
+    redis_host:str
+    redis_port:int
+    redis_password:str
+     
 
-# By default use the same Redis for results; override with CELERY_RESULT_BACKEND
-CELERY_RESULT_BACKEND: Final[str] = os.getenv(
-		"CELERY_RESULT_BACKEND", CELERY_BROKER_URL
-)
-
-# Helpful: expose a small dict for direct Celery config update
-CELERY_CONFIG = {
-		"broker": CELERY_BROKER_URL,
-		"broker_url": CELERY_BROKER_URL,
-		"backend": CELERY_RESULT_BACKEND,
-		"result_backend": CELERY_RESULT_BACKEND,
-}
+    model_config = SettingsConfigDict(
+        env_file=ENV_PATH,
+        env_file_encoding='utf-8',
+        case_sensitive=False
+    )
 
 
 DEFILLAMA_URL_ENDPOINTS: Final[dict[str, str]] = {
@@ -46,4 +48,10 @@ DEFILLAMA_URL_ENDPOINTS: Final[dict[str, str]] = {
     'pools':'https://yields.llama.fi/pools'
 }
 
-MANTLE_RPC_URL = 'https://rpc..'
+DUNE_SERVICE_ENDPOINTS : Final[dict[str, str]] = {
+    'balances':'https://api.sim.dune.com/v1/evm/balances',
+    'token_info':'https://api.sim.dune.com/v1/evm/token-info'
+}
+
+MANTLE_RPC_URL = 'https://mantle.drpc.org'  # This is a public RPC endpoint for Mantle
+MANTLE_WSS_URL = 'wss://mantle.drpc.org'  # WebSocket endpoint for Mantle

@@ -1,4 +1,7 @@
-
+from tasks.agent_tasks import portfolio_task
+from celery.result import AsyncResult
+from core import celery_app
+from fastapi import APIRouter
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -10,11 +13,6 @@ async def portfolio():
     return {'agent':'portfolio','status':'ok'}
 
 
-from fastapi import APIRouter
-from tasks import portfolio_task
-
-from celery.result import AsyncResult
-from core import celery_app
 
 router = APIRouter()
 
