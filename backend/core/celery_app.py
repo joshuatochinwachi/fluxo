@@ -63,9 +63,12 @@ celery_app = Celery(
         'tasks.agent_tasks.risk_task',
         'tasks.agent_tasks.social_task',
         'tasks.agent_tasks.x402_task',
-        'tasks.agent_tasks.yield_task'
+        'tasks.agent_tasks.yield_task',
+        'tasks.alert_coordinator',      # ← ADD THIS
+        'tasks.periodic_tasks',          # ← ADD THIS
     ],
 )
+
 
 # Also allow programmatic updates from CELERY_CONFIG if needed elsewhere.
 celery_app.conf.update({
