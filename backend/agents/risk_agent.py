@@ -10,7 +10,7 @@ Week 2 Enhancement:
 """
 
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, UTC
 import logging
 from pydantic import BaseModel
 from enum import Enum
@@ -205,7 +205,7 @@ class RiskAgent:
                 },
                 recommendations=recommendations,
                 market_condition=market_condition,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )
             
             logger.info(
