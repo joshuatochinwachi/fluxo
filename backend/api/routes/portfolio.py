@@ -1,24 +1,17 @@
+from typing import Dict
 from tasks.agent_tasks import portfolio_task
 from celery.result import AsyncResult
 from core import celery_app
 from fastapi import APIRouter
 from fastapi import APIRouter
 
-router = APIRouter()
-
-@router.get('/portfolio')
-async def portfolio():
-
-    # logic
-    return {'agent':'portfolio','status':'ok'}
-
 
 
 router = APIRouter()
 
 @router.get('/portfolio')
-async def portfolio():
-    task = portfolio_task.delay() # adding the background worker
+async def portfolio(address:str)->Dict:
+    task = portfolio_task.delay(address) # adding the background worker
     # logic
     return {'agent':'portfolio ','task_id': task.id}
 

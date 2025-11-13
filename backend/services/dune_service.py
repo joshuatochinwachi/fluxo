@@ -1,4 +1,6 @@
 import aiohttp
+from typing import List
+
 from core.config import DUNE_SERVICE_ENDPOINTS
 from core.config import Settings
 from eth_utils import to_checksum_address
@@ -30,7 +32,10 @@ class DuneService:
                 return data['balances']
 
     # main entryy for porfolio analysis        
-    async def user_portfolio_analysis(self,user_address:str)->dict:
+    async def user_portfolio_analysis(self,user_address:str)->List:
+        """
+            analyse the portolio of an address 
+        """
         user_address = to_checksum_address(user_address)
         user_token_baLances = await self._fetch_user_token_balaance(user_address)
         if not user_token_baLances:

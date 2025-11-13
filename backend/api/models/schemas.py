@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator 
 from typing import List, Dict, Optional
 from datetime import datetime
 from enum import Enum
@@ -13,7 +13,7 @@ class PortfolioInput(BaseModel):
     wallet_address: str = Field(..., min_length=42, max_length=42)
     network: str = Field(default="mantle")
     
-    @validator('wallet_address')
+    @field_validator('wallet_address')
     def validate_address(cls, v):
         if not v.startswith('0x'):
             raise ValueError('Invalid wallet address')

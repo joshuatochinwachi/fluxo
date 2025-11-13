@@ -1,12 +1,12 @@
 import asyncio
 import json
 import logging
-import re
 from typing import AsyncIterator
 
 from .token_listener import TokenListener,TranferReponse
 from services.dune_service import DuneService
 from models.redis_connect import db_connector
+from core.pubsub.channel_manager import ChannelNames
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +85,8 @@ class TokenWatcher:
 
         # Publishing To Redis PubSub Channel
         update_data = json.dumps(update_data)
-        await self.redis_db.publish(self.channel_name,update_data)
-        print(f"📢 Published transfer event to channel {self.channel_name}: {update_data}")
+        await self.redis_db.publish(ChannelNames.ONCHAIN.value,update_data)
+        print(f"📢 Published transfer event to channel {ChannelNames.ONCHAIN.value}: {update_data}")
 
 
 

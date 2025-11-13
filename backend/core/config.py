@@ -17,7 +17,6 @@ import os
 from pathlib import Path
 from typing import Final
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from models.redis_connect import db_connector
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / '.env'
@@ -40,6 +39,8 @@ class Settings(BaseSettings):
 
 
 class Redisconnect:
+   from models.redis_connect import db_connector
+   
    redis_connector = db_connector(max_connections=5)
    redis_db = redis_connector.get_connection()
 

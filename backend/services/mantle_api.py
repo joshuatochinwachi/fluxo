@@ -1,14 +1,12 @@
-from web3 import Web3,AsyncHTTPProvider
+from web3 import Web3,AsyncHTTPProvider,AsyncWeb3
 from eth_utils import to_checksum_address
 
 from core.config import MANTLE_RPC_URL
 
-# Initialize Web3 instance for Mantle network
-w3_mantle = Web3(AsyncHTTPProvider(MANTLE_RPC_URL))
 
 class MantleAPI:
     def __init__(self):
-        self.web3 = w3_mantle
+        self.web3 = AsyncWeb3(AsyncHTTPProvider(MANTLE_RPC_URL))
 
     async def get_balance(self, address: str) -> float:
         """Fetch the balance of an address on the Mantle network."""

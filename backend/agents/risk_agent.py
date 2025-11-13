@@ -225,8 +225,8 @@ class RiskAgent:
         """
 
         """"
-        Check service/dune_service.py for real implementation
-        Checkout example.py for usage sample
+        Check service/datapipeline.py for real implementation
+        
         """
         # Mock portfolio for testing
         mock_assets = [

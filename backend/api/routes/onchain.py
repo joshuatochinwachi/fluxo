@@ -1,6 +1,7 @@
 import uuid
 from fastapi import APIRouter,WebSocket,WebSocketDisconnect
 from tasks.agent_tasks import onchain_task
+from tasks.agent_tasks.onchain_task import protocol_task
 
 from celery.result import AsyncResult
 from core import celery_app
@@ -18,7 +19,7 @@ async def onchain():
     # logic
     return {'agent':'onchain ','task_id': task.id}
 
-# fetching the results
+# Fetching onchain results
 @router.get('/onchain/status/{task_id}')
 async def get_onchain_result(task_id:str):
     task_result = AsyncResult(task_id, app=celery_app)
@@ -26,8 +27,27 @@ async def get_onchain_result(task_id:str):
     return {
         "task_id": task_id,
         "status": task_result.status,
-        "result": task_result.result,
+        "result": task_result.result
     }
+
+@router.get('/protocols')
+async def protocols():
+    task = protocol_task.delay() # adding the background worker
+    # logic
+    return {'agent':'onchain ','task_id': task.id}
+
+# Fetching protocols results
+@router.get('/protocols/status/{task_id}')
+async def get_onchain_result(task_id:str):
+    task_result = AsyncResult(task_id, app=celery_app)
+
+    return {
+        "task_id": task_id,
+        "status": task_result.status,
+        "result": task_result.result
+    }
+
+
 
 @router.websocket('/whale_watcher')
 async def whale_whatcher(websocket: WebSocket):

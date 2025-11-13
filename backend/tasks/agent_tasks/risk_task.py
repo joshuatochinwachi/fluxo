@@ -4,7 +4,6 @@ Risk Analysis Celery Task - Enhanced with Alert Triggering
 from core import celery_app
 import asyncio
 from agents.risk_agent import RiskAgent
-from services.alert_manager import AlertManager
 
 @celery_app.task(bind=True, name="risk_analysis")
 def risk_task(self, wallet_address: str, network: str = "mantle", market_correlation: float = None):
