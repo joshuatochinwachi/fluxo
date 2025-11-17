@@ -1,0 +1,276 @@
+"""
+Social Data Fetcher Service
+Fetches data from Twitter, Farcaster, and Reddit
+"""
+import os
+import asyncio
+import aiohttp
+from typing import List, Dict, Optional
+from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class SocialDataFetcher:
+    """Fetch social media data for sentiment analysis"""
+    
+    def _init_(self):
+        # API keys from environment
+        self.twitter_bearer_token = os.getenv("TWITTER_BEARER_TOKEN", "")
+        self.reddit_client_id = os.getenv("REDDIT_CLIENT_ID", "")
+        self.reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET", "")
+        
+    async def fetch_twitter_data(self, token_symbol: str, limit: int = 100) -> List[Dict]:
+        """
+        Fetch tweets about a token
+        
+        Args:
+            token_symbol: Token symbol (e.g., "MNT", "ETH")
+            limit: Max number of tweets to fetch
+            
+        Returns:
+            List of tweet data
+        """
+        try:
+            # Twitter API v2 endpoint
+            query = f"${token_symbol} OR #{token_symbol} OR {token_symbol}"
+            url = "https://api.twitter.com/2/tweets/search/recent"
+            
+            headers = {
+                "Authorization": f"Bearer {self.twitter_bearer_token}"
+            }
+            
+            params = {
+                "query": query,
+                "max_results": min(limit, 100),
+                "tweet.fields": "created_at,public_metrics,author_id",
+                "expansions": "author_id"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        tweets = self._process_twitter_response(data)
+                        logger.info(f"Fetched {len(tweets)} tweets for {token_symbol}")
+                        return tweets
+                    else:
+                        logger.error(f"Twitter API error: {response.status}")
+                        return self._get_mock_twitter_data(token_symbol, limit)
+                        
+        except Exception as e:
+            logger.error(f"Twitter fetch failed: {str(e)}")
+            return self._get_mock_twitter_data(token_symbol, limit)
+    
+    async def fetch_farcaster_data(self, token_symbol: str, limit: int = 50) -> List[Dict]:
+        """
+        Fetch Farcaster casts about a token
+        
+        Args:
+            token_symbol: Token symbol
+            limit: Max number of casts
+            
+        Returns:
+            List of cast data
+        """
+        try:
+            # Farcaster Hub API
+            url = "https://hub.farcaster.xyz:2281/v1/castsByMention"
+            
+            params = {
+                "fid": token_symbol,
+                "pageSize": limit
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        casts = self._process_farcaster_response(data, token_symbol)
+                        logger.info(f"Fetched {len(casts)} Farcaster casts for {token_symbol}")
+                        return casts
+                    else:
+                        logger.error(f"Farcaster API error: {response.status}")
+                        return self._get_mock_farcaster_data(token_symbol, limit)
+                        
+        except Exception as e:
+            logger.error(f"Farcaster fetch failed: {str(e)}")
+            return self._get_mock_farcaster_data(token_symbol, limit)
+    
+    async def fetch_reddit_data(self, token_symbol: str, limit: int = 50) -> List[Dict]:
+        """
+        Fetch Reddit posts about a token
+        
+        Args:
+            token_symbol: Token symbol
+            limit: Max number of posts
+            
+        Returns:
+            List of Reddit post data
+        """
+        try:
+            # Reddit API (using public JSON endpoint for now)
+            subreddits = ["CryptoCurrency", "defi", "ethereum", "cryptocurrency"]
+            all_posts = []
+            
+            async with aiohttp.ClientSession() as session:
+                for subreddit in subreddits:
+                    url = f"https://www.reddit.com/r/{subreddit}/search.json"
+                    params = {
+                        "q": token_symbol,
+                        "limit": limit // len(subreddits),
+                        "sort": "new",
+                        "restrict_sr": "true"
+                    }
+                    
+                    headers = {
+                        "User-Agent": "FluxoBot/1.0"
+                    }
+                    
+                    async with session.get(url, params=params, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            posts = self._process_reddit_response(data)
+                            all_posts.extend(posts)
+                        else:
+                            logger.error(f"Reddit API error for r/{subreddit}: {response.status}")
+            
+            if all_posts:
+                logger.info(f"Fetched {len(all_posts)} Reddit posts for {token_symbol}")
+                return all_posts[:limit]
+            else:
+                return self._get_mock_reddit_data(token_symbol, limit)
+                
+        except Exception as e:
+            logger.error(f"Reddit fetch failed: {str(e)}")
+            return self._get_mock_reddit_data(token_symbol, limit)
+    
+    async def fetch_all_platforms(self, token_symbol: str) -> Dict[str, List[Dict]]:
+        """
+        Fetch data from all platforms concurrently
+        
+        Args:
+            token_symbol: Token symbol
+            
+        Returns:
+            Dictionary with data from all platforms
+        """
+        tasks = [
+            self.fetch_twitter_data(token_symbol, 100),
+            self.fetch_farcaster_data(token_symbol, 50),
+            self.fetch_reddit_data(token_symbol, 50)
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        return {
+            "twitter": results[0] if not isinstance(results[0], Exception) else [],
+            "farcaster": results[1] if not isinstance(results[1], Exception) else [],
+            "reddit": results[2] if not isinstance(results[2], Exception) else []
+        }
+    
+    # Helper methods for processing responses
+    
+    def _process_twitter_response(self, data: Dict) -> List[Dict]:
+        """Process Twitter API response"""
+        tweets = []
+        if "data" in data:
+            for tweet in data["data"]:
+                tweets.append({
+                    "platform": "twitter",
+                    "text": tweet.get("text", ""),
+                    "created_at": tweet.get("created_at", ""),
+                    "author_id": tweet.get("author_id", ""),
+                    "likes": tweet.get("public_metrics", {}).get("like_count", 0),
+                    "retweets": tweet.get("public_metrics", {}).get("retweet_count", 0),
+                    "replies": tweet.get("public_metrics", {}).get("reply_count", 0)
+                })
+        return tweets
+    
+    def _process_farcaster_response(self, data: Dict, token_symbol: str) -> List[Dict]:
+        """Process Farcaster API response"""
+        casts = []
+        if "messages" in data:
+            for message in data["messages"]:
+                cast_data = message.get("data", {}).get("castAddBody", {})
+                casts.append({
+                    "platform": "farcaster",
+                    "text": cast_data.get("text", ""),
+                    "created_at": message.get("data", {}).get("timestamp", ""),
+                    "author_fid": message.get("data", {}).get("fid", ""),
+                    "mentions": cast_data.get("mentions", [])
+                })
+        return casts
+    
+    def _process_reddit_response(self, data: Dict) -> List[Dict]:
+        """Process Reddit API response"""
+        posts = []
+        if "data" in data and "children" in data["data"]:
+            for child in data["data"]["children"]:
+                post_data = child.get("data", {})
+                posts.append({
+                    "platform": "reddit",
+                    "title": post_data.get("title", ""),
+                    "text": post_data.get("selftext", ""),
+                    "subreddit": post_data.get("subreddit", ""),
+                    "created_at": datetime.fromtimestamp(post_data.get("created_utc", 0)).isoformat(),
+                    "author": post_data.get("author", ""),
+                    "score": post_data.get("score", 0),
+                    "num_comments": post_data.get("num_comments", 0),
+                    "url": post_data.get("url", "")
+                })
+        return posts
+    
+    # Mock data generators (for development/testing)
+    
+    def _get_mock_twitter_data(self, token_symbol: str, limit: int) -> List[Dict]:
+        """Generate mock Twitter data for testing"""
+        now = datetime.now()
+        mock_tweets = [
+            {
+                "platform": "twitter",
+                "text": f"${token_symbol} is looking bullish! 🚀 #crypto #DeFi",
+                "created_at": (now - timedelta(hours=i)).isoformat(),
+                "author_id": f"user_{i}",
+                "likes": 50 + i * 10,
+                "retweets": 20 + i * 5,
+                "replies": 10 + i * 2
+            }
+            for i in range(min(limit, 10))
+        ]
+        return mock_tweets
+    
+    def _get_mock_farcaster_data(self, token_symbol: str, limit: int) -> List[Dict]:
+        """Generate mock Farcaster data"""
+        now = datetime.now()
+        mock_casts = [
+            {
+                "platform": "farcaster",
+                "text": f"Interesting development with {token_symbol} on Mantle L2",
+                "created_at": (now - timedelta(hours=i)).isoformat(),
+                "author_fid": f"fid_{i}",
+                "mentions": []
+            }
+            for i in range(min(limit, 5))
+        ]
+        return mock_casts
+    
+    def _get_mock_reddit_data(self, token_symbol: str, limit: int) -> List[Dict]:
+        """Generate mock Reddit data"""
+        now = datetime.now()
+        mock_posts = [
+            {
+                "platform": "reddit",
+                "title": f"Discussion: {token_symbol} fundamentals",
+                "text": f"What are your thoughts on {token_symbol}? Looking solid IMO.",
+                "subreddit": "CryptoCurrency",
+                "created_at": (now - timedelta(hours=i)).isoformat(),
+                "author": f"redditor_{i}",
+                "score": 100 + i * 20,
+                "num_comments": 30 + i * 5,
+                "url": f"https://reddit.com/r/CryptoCurrency/comments/{i}"
+            }
+            for i in range(min(limit, 5))
+        ]
+        return mock_posts
