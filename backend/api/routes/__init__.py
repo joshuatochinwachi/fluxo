@@ -11,6 +11,7 @@ from .x402 import router as x402_router
 from .yield_opportunity import router as yield_router
 from .social import router as social_router
 from .alerts import router as alerts_router
+from .system import router as system_router
 
 
 __all__ = [
@@ -26,5 +27,7 @@ __all__ = [
     'x402_router',
     'yield_router',
     'social_router',
-    'alerts_router'
+    'alerts_router',
+    'system_router'
+    
 ]
