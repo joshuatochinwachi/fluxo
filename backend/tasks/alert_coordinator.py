@@ -109,7 +109,7 @@ def batch_alert_processing(wallet_addresses: List[str]):
 
 
 @celery_app.task(name="smart_money_process")
-def process_smart_money(event: dict):
+def process_smart_money(event: dict) ->dict:
     """Process a smart money event by delegating to the orchestrator.
 
     This replaces the previous behaviour that simply re-published the event.

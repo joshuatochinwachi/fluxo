@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     reddit_client_id:str
     reddit_client_secret:str
     anthropic_api_key:str
+    gemini_api_key:str
     mongo_url:str
 
 

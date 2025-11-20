@@ -82,13 +82,16 @@ class AlertOrchestrator:
 			price_info = await self.request_service.dex_screener_price_data(token)
 			if price_info:
 				price_change_percent = price_info.get('price_change_1hr')
+				price = price_info.get('price')
 				market_confirmed = True
 			else:
 				price_change_percent = None
+				price = None
 				market_confirmed = False
             
 			result["checks"]["market"] = {
 				"price_change_1h_percent": price_change_percent,
+				"price":price,
 				"market_confirmed": market_confirmed,
 			}
 		except Exception as e:
@@ -126,9 +129,8 @@ class AlertOrchestrator:
 			
             # Retrive all tracked Wallet
 			tracked_wallets = await self.redis.smembers('tracked_wallets')
-			print(tracked_wallets)
 			wallets_addresses = {address.decode() for address in tracked_wallets}
-			wallet_to_notify = set()
+			wallet_to_notify = []
 			wallets_addresses = ['0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64']
 			if wallets_addresses:
 				# Fetch the portfolio for each wallet
@@ -141,7 +143,7 @@ class AlertOrchestrator:
 						holding_symbols = { (a.get("symbol") or a.get("token_symbol") or "").lower() for a in wallet_holdings}
 						relevance = "high" if (symbol or "").lower() in holding_symbols else "low"
 						if relevance == 'high':
-							wallet_to_notify.add(wallet_to_notify[0].get('user_address'))
+							wallet_to_notify.append(wallet_holdings[0].get('user_address'))
 
 				result['wallet_to_notify'] = wallet_to_notify
 			
@@ -158,13 +160,17 @@ class AlertOrchestrator:
 				f"Manipulation risk={result['checks']['manipulation'].get('risk')} ; \n"
 				f"Write a one-sentence analyst summary describing the situation for token {symbol}.")
 
-			# Use LLM prototype
-			# llm_resp = self.llm.call_openai(prompt)
+			# Use LLM 
+			for attempt in range(0,4):
+				llm_resp = self.llm.Call_gemini(prompt)
+				if llm_resp:
+					break
+				await asyncio.sleep(5) # Soometime the LLM is ovevrloaded - cooldown
+
 			text = None
-			# if isinstance(llm_resp, dict):
-			# 	choices = llm_resp.get("choices") or []
-			# 	if choices:
-			# 		text = choices[0].get("message", {}).get("content") or choices[0].get("text")
+			if isinstance(llm_resp, str):
+				text = llm_resp
+				
 			if not text:
 				# Fallback structured summary
 				text = (
@@ -183,7 +189,7 @@ class AlertOrchestrator:
 				"summary": result.get("ai_summary"),
 				"details": result,
 			}
-			print(alert_payload)
+			
 			# publish to automation channel (AutomationAgent will handle delivery)
 			await self.redis.publish(ChannelNames.AUTOMATION.value, json.dumps(alert_payload))
 			# publish to x402 channel for pro users

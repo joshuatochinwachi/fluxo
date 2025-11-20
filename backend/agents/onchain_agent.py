@@ -22,7 +22,7 @@ class onchain_agent:
             if float(data['amount_usd']) < whale_threshold:
                 continue
 
-            from  tasks.alert_tasks import process_smart_money
+            from  tasks.alert_coordinator import process_smart_money
             # pushing to smart money process
             process_smart_money.delay(data)
 

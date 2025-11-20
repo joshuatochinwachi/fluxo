@@ -22,7 +22,7 @@ class YieldlProtocol:
 
 @dataclass
 class UserPortfolio:
-    wallet_address:str
+    user_address:str
     token_address:str
     token_symbol:str
     balance: float

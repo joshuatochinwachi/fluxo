@@ -15,10 +15,10 @@ class DataSource(str, Enum):
     DUNE = "dune"
     NANSEN = "nansen"
 
-
 class WhaleMovement:
     """Represents a large wallet movement"""
-    def _init_(self, tx_hash: str, from_addr: str, to_addr: str,
+
+    def __init__(self, tx_hash: str, from_addr: str, to_addr: str,
                  token: str, amount: float, usd_value: float,
                  source: str = "unknown"):
         self.tx_hash = tx_hash
@@ -27,7 +27,7 @@ class WhaleMovement:
         self.token = token
         self.amount = amount
         self.usd_value = usd_value
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now()
         self.impact_score = self._calculate_impact(usd_value)
         self.data_source = source
     
@@ -87,9 +87,8 @@ class WhaleTracker:
         self,
         timeframe: str = "24h",
         min_value_usd: Optional[float] = None
-    ) -> List[WhaleMovement]:
+    ) -> list:
         """Get recent whale movements"""
-        
         if self.primary_source == DataSource.MOCK:
             return self._get_mock_movements()
         elif self.primary_source == DataSource.DUNE:
@@ -99,16 +98,17 @@ class WhaleTracker:
         
         return []
     
-    def _get_mock_movements(self) -> List[WhaleMovement]:
+    def _get_mock_movements(self) -> list:
         """Mock whale movements for testing"""
         logger.info("Using mock whale data")
+        
         
         return [
             WhaleMovement(
                 tx_hash="0xa1b2c3d4e5f6...",
                 from_addr="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
                 to_addr="0x28C6c06298d514Db089934071355E5743bf21d60",
-                token="mETH",
+                token="mnt",
                 amount=1500.0,
                 usd_value=5_250_000,
                 source="mock"
@@ -130,7 +130,7 @@ class WhaleTracker:
                 amount=2_000_000,
                 usd_value=2_000_000,
                 source="mock"
-            ),
+            )
         ]
     
     async def _fetch_from_dune(self, timeframe: str, min_value: Optional[float]) -> List[WhaleMovement]:
@@ -141,7 +141,7 @@ class WhaleTracker:
         """Fetch from Nansen - TODO Week 3"""
         raise NotImplementedError("Nansen integration pending Week 3")
     
-    async def check_whale_alerts(self, movements: List[WhaleMovement]) -> List['Alert']:
+    async def check_whale_alerts(self, movements:list) -> list:
         """
         Check whale movements and create alerts for significant ones
         

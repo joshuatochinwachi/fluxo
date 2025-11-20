@@ -92,9 +92,10 @@ url = 'https://....../agent/macrostatus/{task_id}'
 # print(result)
 
 
-from agents.orchestrator import AlertOrchestrator
-
 async def main():
+    
+    from agents.orchestrator import AlertOrchestrator
+
     
     event = {
         'token':'0x375450706cb79aB749EBB90001bDa10341dD82BC',
@@ -102,10 +103,27 @@ async def main():
         "from_address" :  '0xkksdi',
         "to_address" : '0Xwdhdjjsa',
         "transaction_hash" :  'ioiqnas',
-        "symbol" : '$ETH',
+        "symbol" : 'MNT',
         "block_number" :  12344
     }
     smart_money = AlertOrchestrator()
     await smart_money.process_event(event)
 
 asyncio.run(main())
+
+
+# from services.llm_providers import LLMClient
+
+# prompt = (
+#         f"Market: price_change=300% ; "
+#         f"Social: spike=300% ; "
+#         f"Manipulation risk=50% ; \n"
+#         f"Write a one-sentence analyst summary describing the situation for token ETH."
+#         )
+
+
+# async def main():
+#     lm = LLMClient()
+#     lm.Call_gemini(prompt)
+
+# asyncio.run(main())
