@@ -87,9 +87,18 @@ class Pipeline:
     async def watch_transfers(self) -> AsyncIterator[dict]:
         while True:
             try:
-                async for transfer_data in self.mantle_api.tranfers_event():
+                transfer_data = TranferReponse(
+                    token='0x4515A45337F461A11Ff0FE8aBF3c606AE5dC00c9',
+                    from_address='0xEd04925173FAD6A8e8939338ccF23244cae1fF12',
+                    to_address='0xF354230053d4919A09508cdb3dff6a4E8e56643b',
+                    amount=1000000000000,
+                    transaction_hash='0xtest_hash',
+                    block_number=123456
+                )
+                # async for transfer_data in self.mantle_api.tranfers_event():
                     # print(transfer_data)
-                    asyncio.create_task(self._token_watch_updater(transfer_data))
+                asyncio.create_task(self._token_watch_updater(transfer_data))
+                await asyncio.sleep(20)
             except Exception as e:
                 logger.error(f"Error watching transfers: {e}")
                 continue

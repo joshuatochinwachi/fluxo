@@ -3,7 +3,6 @@ Periodic Tasks for Continuous Monitoring
 """
 from core import celery_app
 import asyncio
-from core.config import get_redis_connector
 import json
 
 
@@ -17,17 +16,16 @@ def periodic_portfolio_monitoring():
         print('Starting periodic portfolio monitoring...')
         
         # Get tracked wallets from Redis
-        redis_conn = get_redis_connector()
+       
+        from core.config import get_redis_connection
+        redis_conn = get_redis_connection()
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
-        # Connect to Redis
-        loop.run_until_complete(redis_conn.connect())
-        
+
         # Get all tracked wallets
         tracked_wallets = loop.run_until_complete(
-            redis_conn.redis.smembers("tracked_wallets")
+            redis_conn.smembers("tracked_wallets")
         )
         
         loop.close()
@@ -44,12 +42,12 @@ def periodic_portfolio_monitoring():
         
         results = []
         for wallet in tracked_wallets:
-            task = coordinate_alerts.delay(wallet)
+            task = coordinate_alerts.delay(wallet.decode())
             results.append({
                 'wallet': wallet,
                 'task_id': task.id
             })
-        
+
         print(f'Queued monitoring for {len(tracked_wallets)} wallets')
         
         return {
@@ -135,14 +133,16 @@ def generate_daily_digest():
         print('Generating daily digest...')
         
         # Get all tracked wallets
-        redis_conn = get_redis_connector()
+        
+        from core.config import get_redis_connection
+        redis_conn = get_redis_connection()
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        loop.run_until_complete(redis_conn.connect())
+        
         tracked_wallets = loop.run_until_complete(
-            redis_conn.redis.smembers("tracked_wallets")
+            redis_conn.smembers("tracked_wallets")
         )
         
         # Generate digest for each wallet
@@ -153,7 +153,7 @@ def generate_daily_digest():
             # Get latest analysis results
             risk_key = f"risk_analysis:{wallet}"
             risk_data = loop.run_until_complete(
-                redis_conn.redis.get(risk_key)
+                redis_conn.get(risk_key)
             )
             
             if risk_data:

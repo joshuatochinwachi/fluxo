@@ -7,7 +7,7 @@ import asyncio
 # REMOVE THIS LINE: from services.alert_manager import AlertManager
 
 @celery_app.task(bind=True, name="macro_analysis")
-def macro_task( wallet_address: str = None):
+def macro_task(self, wallet_address: str = None):
     """
     Macro market analysis with Mantle protocol correlation
     """
@@ -21,7 +21,6 @@ def macro_task( wallet_address: str = None):
         print(f'Running macro analysis On: {wallet_address or "all"}')
         
         # Lazy import to avoid circular dependency
-        # from services.alert_manager import AlertManager
         from agents.macro_agent import MacroAgent
         from data_pipeline.pipeline import Pipeline
         
@@ -63,34 +62,57 @@ def macro_task( wallet_address: str = None):
                     return 0.0
                 return vv * 100.0 if vv <= 1.0 else vv
 
-            for opp in opportunities:
-                apy = normalize_apy_percent(opp.get('apy', 0))
-                if apy >= threshold_percent:
-                    title = f"Yield opportunity: {opp.get('protocol_name') or opp.get('symbol')}"
-                    message = (
-                        f"Protocol {opp.get('protocol_name')} ({opp.get('symbol')}) offers {apy:.2f}% APY. "
-                        f"Recommended: {opp.get('recommended_action')}"
+            # Keep only the top-N opportunities by APY (highest first)
+            TOP_N = 3
+
+            def _apy_for_sort(o: dict) -> float:
+                return normalize_apy_percent(o.get('apy', 0))
+
+            # Sort descending and take top N
+            top_opps = sorted(opportunities, key=_apy_for_sort, reverse=True)[:TOP_N]
+
+            # Filter by threshold and aggregate into a single alert
+            qualified_opps = [
+                opp for opp in top_opps
+                if normalize_apy_percent(opp.get('apy', 0)) >= threshold_percent
+            ]
+
+            if qualified_opps:
+                # Build consolidated message with all top opportunities
+                opp_details = []
+                max_apy = 0.0
+                for idx, opp in enumerate(qualified_opps, 1):
+                    apy = normalize_apy_percent(opp.get('apy', 0))
+                    max_apy = max(max_apy, apy)
+                    opp_details.append(
+                        f"{idx}. {opp.get('protocol_name') or opp.get('symbol')} - {apy:.2f}% APY"
                     )
-                    alert = Alert(
-                        alert_id=str(uuid.uuid4()),
-                        alert_type=AlertType.YIELD_OPPORTUNITY.value,
-                        severity=AlertSeverity.INFO.value,
-                        title=title,
-                        message=message,
-                        wallet_address=None,
-                        current_value=apy,
-                        threshold=threshold_percent,
-                        details={"opportunity": opp},
-                        triggered_by="macro_agent"
-                    )
-                    # store via alert manager
-                    try:
-                        pass
-                        # alert_manager._store_alert(alert)
-                    except Exception:
-                        # fallback: append to list
-                        pass
-                    triggered_alerts.append(alert.dict())
+
+                message = (
+                    f"Top {len(qualified_opps)} yield opportunities found:\n" +
+                    "\n".join(opp_details) +
+                    f"\nConsider diversifying across these protocols for optimal returns."
+                )
+
+                # Create single consolidated alert
+                alert = Alert(
+                    alert_id=str(uuid.uuid4()),
+                    alert_type=AlertType.YIELD_OPPORTUNITY.value,
+                    severity=AlertSeverity.INFO.value,
+                    title=f"Top {len(qualified_opps)} Yield Opportunities ({max_apy:.2f}% max APY)",
+                    message=message,
+                    wallet_address=wallet_address,
+                    current_value=max_apy,
+                    threshold=threshold_percent,
+                    details={"opportunities": qualified_opps, "count": len(qualified_opps)},
+                    triggered_by="macro_agent"
+                )
+                try:
+                    pass
+                    # alert_manager._store_alert(alert)
+                except Exception:
+                    pass
+                triggered_alerts.append(alert.to_dict())
         except Exception:
             # keep placeholder empty list if anything goes wrong
             triggered_alerts = []
@@ -101,7 +123,7 @@ def macro_task( wallet_address: str = None):
         # )
         
         loop.close()
-        
+        print(f"Macro Analysis Completed For Wallet {wallet_address}")
         print(f'Triggered {len(triggered_alerts)} macro alerts')
         
         return {

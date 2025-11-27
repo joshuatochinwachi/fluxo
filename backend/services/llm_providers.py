@@ -45,74 +45,36 @@ class LLMClient:
             raise LLMError(f"OpenAI request failed: {e} - {resp.text}")
         return resp.json()
 
-    # def call_claude(self, prompt: str, model: str = "claude-2.1", max_tokens: int = 500) -> Dict:
-    #     """Call Anthropic Claude complete endpoint (prototype).
+    def call_claude(self, prompt: str, model: str = "claude-2.1", max_tokens: int = 500) -> Dict:
+        """Call Anthropic Claude complete endpoint (prototype).
 
-    #     Anthropic accepts either `Authorization: Bearer <key>` or `x-api-key` depending on contract.
-    #     This prototype uses Bearer.
-    #     """
-    #     if not self.anthropic_api_key:
-    #         raise LLMError("ANTHROPIC_API_KEY is not set")
+        Anthropic accepts either `Authorization: Bearer <key>` or `x-api-key` depending on contract.
+        This prototype uses Bearer.
+        """
+        if not self.anthropic_api_key:
+            raise LLMError("ANTHROPIC_API_KEY is not set")
 
-    #     url = f"{ANTHROPIC_API_URL}/v1/complete"
-    #     headers = {
-    #         "Authorization": f"Bearer {self.anthropic_api_key}",
-    #         "Content-Type": "application/json",
-    #     }
-    #     # Anthropic expects a `prompt` that includes an instruction + user text; this is a simple example
-    #     body = {
-    #         "model": model,
-    #         "prompt": prompt,
-    #         "max_tokens_to_sample": max_tokens,
-    #         "temperature": 0.2,
-    #     }
-    #     resp = requests.post(url, headers=headers, json=body, timeout=30)
-    #     try:
-    #         resp.raise_for_status()
-    #     except Exception as e:
-    #         raise LLMError(f"Anthropic request failed: {e} - {resp.text}")
-    #     return resp.json()
+        url = f"{ANTHROPIC_API_URL}/v1/complete"
+        headers = {
+            "Authorization": f"Bearer {self.anthropic_api_key}",
+            "Content-Type": "application/json",
+        }
+        # Anthropic expects a `prompt` that includes an instruction + user text; this is a simple example
+        body = {
+            "model": model,
+            "prompt": prompt,
+            "max_tokens_to_sample": max_tokens,
+            "temperature": 0.2,
+        }
+        resp = requests.post(url, headers=headers, json=body, timeout=30)
+        try:
+            resp.raise_for_status()
+        except Exception as e:
+            raise LLMError(f"Anthropic request failed: {e} - {resp.text}")
+        return resp.json()
 
     
     
-    # def Call_gemini(self,prompt:str,model:str ="gemini-2.5-flash"):
-    #     try:
-        
-    #         headers = {
-    #             "x-goog-api-key": "AIzaSyCUNkJ8NVf11vI6k1cSH6IwOpCRu_u_8QM",
-    #             "Content-Type": "application/json"
-    #         }  
-    #         payload = {
-    #             "contents": [
-    #                 {
-    #                     "parts": [
-    #                         {
-    #                             "text": str(prompt)
-    #                         }
-    #                     ]
-    #                 }
-    #             ],
-                
-    #         }
-    #         GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:GenerateContent"
-    #         response = requests.post(url=GEMINI_URL,json=payload,headers=headers)
-    #         if response.status_code == 200:
-    #             result =  response.json()
-    #             response = result['candidates'][0]['content']['parts'][0]['text']
-    #             print(response)
-
-    #             return response
-    #         else:
-    #             print(response.status_code)
-    #             return 
-    #     except Exception as e:
-    #         print(e)
-
-
-
-import requests
-
-class LLMClient:
     def Call_gemini(self, prompt: str, model: str = "gemini-2.5-flash"):
         try:
             headers = {
@@ -144,3 +106,8 @@ class LLMClient:
 
         except Exception as e:
             return None
+
+
+
+
+    

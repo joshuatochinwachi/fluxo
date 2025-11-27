@@ -34,7 +34,7 @@ class PortfolioAsset(BaseModel):
     token_symbol: str
     token_address: str
     balance: float
-    usd_value: float
+    value_usd: float
     percentage_of_portfolio: float
     protocol: Optional[str] = None
 
@@ -129,7 +129,7 @@ class RiskAgent:
     
     def analyze_portfolio(
         self, 
-        portfolio: Dict,
+        portfolio: list,
         market_correlation: Optional[float] = None
     ) -> Dict:
         """
@@ -142,9 +142,11 @@ class RiskAgent:
         Returns:
             Risk analysis dictionary
         """
+
+        
         try:
             # Extract wallet address
-            wallet_address = portfolio.get("wallet", "unknown")
+            wallet_address = portfolio[0].user_address
             
             # Mock assets for now
             assets = [
@@ -152,7 +154,7 @@ class RiskAgent:
                     token_symbol="mETH",
                     token_address="0x...",
                     balance=10.5,
-                    usd_value=35000,
+                    value_usd=35000,
                     percentage_of_portfolio=70,
                     protocol="merchant_moe"
                 ),
@@ -160,7 +162,7 @@ class RiskAgent:
                     token_symbol="USDC",
                     token_address="0x...",
                     balance=10000,
-                    usd_value=10000,
+                    value_usd=10000,
                     percentage_of_portfolio=20,
                     protocol="fusionx"
                 ),
@@ -168,17 +170,17 @@ class RiskAgent:
                     token_symbol="MNT",
                     token_address="0x...",
                     balance=5000,
-                    usd_value=5000,
+                    value_usd=5000,
                     percentage_of_portfolio=10,
                     protocol=None
                 )
             ]
             
             # Calculate risk metrics
-            concentration = self._calculate_concentration(assets)
-            liquidity = self._calculate_liquidity_sync(assets)
-            volatility = self._calculate_volatility_sync(assets)
-            contract_risk = self._calculate_contract_risk_sync(assets)
+            concentration = self._calculate_concentration(portfolio)
+            liquidity = self._calculate_liquidity_sync(portfolio)
+            volatility = self._calculate_volatility_sync(portfolio)
+            contract_risk = self._calculate_contract_risk_sync(portfolio)
             
             correlation_risk, market_condition = self._calculate_correlation_risk(
                 market_correlation or 0.5
@@ -200,6 +202,9 @@ class RiskAgent:
             risk_level = self._get_risk_level(overall_score)
             recommendations = self._generate_recommendations(metrics, assets, market_condition)
             
+            # Calculate detailed risk factors for deeper insights
+            risk_factors = self.calculate_risk_factors(assets, market_correlation or 0.5)
+            
             return {
                 "wallet_address": wallet_address,
                 "risk_score": overall_score,
@@ -210,19 +215,19 @@ class RiskAgent:
                 "contract_risk": contract_risk,
                 "correlation_risk": correlation_risk,
                 "market_condition": market_condition,
+                "risk_factors": risk_factors,  # Detailed breakdown
                 "recommendations": recommendations,
                 "top_holdings": [
                     {
                         "token": asset.token_symbol,
+                        "token_address": asset.token_address,
                         "percentage": asset.percentage_of_portfolio,
-                        "value_usd": asset.usd_value,
-                        "protocol": asset.protocol
+                        "value_usd": asset.value_usd
                     }
                     for asset in sorted(assets, key=lambda a: a.percentage_of_portfolio, reverse=True)[:3]
                 ],
                 "timestamp": datetime.now(UTC).isoformat()
             }
-            
         except Exception as e:
             logger.error(f"Risk analysis failed: {str(e)}")
             raise
@@ -240,7 +245,7 @@ class RiskAgent:
                 token_symbol="mETH",
                 token_address="0x...",
                 balance=10.5,
-                usd_value=35000,
+                value_usd=35000,
                 percentage_of_portfolio=70,
                 protocol="merchant_moe"  # Staked on Merchant Moe
             ),
@@ -248,7 +253,7 @@ class RiskAgent:
                 token_symbol="USDC",
                 token_address="0x...",
                 balance=10000,
-                usd_value=10000,
+                value_usd=10000,
                 percentage_of_portfolio=20,
                 protocol="fusionx"  # Liquidity on FusionX
             ),
@@ -256,7 +261,7 @@ class RiskAgent:
                 token_symbol="MNT",
                 token_address="0x...",
                 balance=5000,
-                usd_value=5000,
+                value_usd=5000,
                 percentage_of_portfolio=10,
                 protocol=None  # Held in wallet
             )
@@ -296,13 +301,17 @@ class RiskAgent:
         
         weighted_liquidity = 0
         for asset in assets:
-            protocol = asset.protocol
+            # TODO: protocol = asset.protocol
+            protocol = None
             if protocol and protocol.lower() in self.liquidity_tiers:
                 tier = self.liquidity_tiers[protocol.lower()]
                 asset_liquidity_score = tier_scores.get(tier, 75)
             else:
-                asset_liquidity_score = 40 if asset.usd_value > self.thresholds["low_liquidity_usd"] else 70
-            
+                if asset.value_usd:
+                    asset_liquidity_score = 40 if asset.value_usd > self.thresholds["low_liquidity_usd"] else 70
+                else:
+                    asset_liquidity_score = 70
+
             weight = asset.percentage_of_portfolio / 100
             weighted_liquidity += asset_liquidity_score * weight
         
@@ -335,7 +344,8 @@ class RiskAgent:
         safe_tokens = ["USDC", "USDT", "DAI", "WETH", "mETH", "MNT", "BTC", "ETH"]
         
         for asset in assets:
-            protocol = asset.protocol
+            # TODO: protocol = asset.protocol
+            protocol = None
             if protocol and protocol.lower() in self.protocol_tiers:
                 tier = self.protocol_tiers[protocol.lower()]
                 asset_risk = self.protocol_risk_scores[tier]
@@ -358,6 +368,102 @@ class RiskAgent:
         else:
             excess = (market_correlation - 0.7) / 0.3
             return round(70 + (excess * 30), 2), "stressed_correlation"
+    
+    def calculate_risk_factors(
+        self,
+        assets: List[PortfolioAsset],
+        market_correlation: float = 0.5
+    ) -> Dict[str, float]:
+        """
+        Calculate individual risk factors for each category.
+        
+        This breaks down the portfolio into specific risk dimensions:
+        - concentration: How concentrated holdings are (HHI-based)
+        - liquidity: How easily positions can be liquidated
+        - volatility: Overall portfolio volatility exposure
+        - contract_risk: Exposure to unaudited/risky protocols
+        - correlation_risk: Market correlation impact
+        - diversification: Inverse of concentration (bonus)
+        - exposure_balance: How well-balanced across asset classes
+        
+        Args:
+            assets: List of portfolio assets
+            market_correlation: Market correlation coefficient (0-1)
+            
+        Returns:
+            Dictionary of risk factors (0-100 scale)
+        """
+        factors = {}
+        
+        # 1. Concentration Risk (0-100)
+        factors["concentration"] = self._calculate_concentration(assets)
+        
+        # 2. Liquidity Risk (0-100)
+        factors["liquidity"] = self._calculate_liquidity_sync(assets)
+        
+        # 3. Volatility Risk (0-100)
+        factors["volatility"] = self._calculate_volatility_sync(assets)
+        
+        # 4. Contract Risk (0-100)
+        factors["contract_risk"] = self._calculate_contract_risk_sync(assets)
+        
+        # 5. Correlation Risk (0-100)
+        correlation_risk, _ = self._calculate_correlation_risk(market_correlation)
+        factors["correlation_risk"] = correlation_risk
+        
+        # 6. Diversification Score (inverse of concentration, 0-100)
+        # Higher is better (fewer risks)
+        factors["diversification"] = max(0, 100 - factors["concentration"])
+        
+        # 7. Exposure Balance (penalty for too few assets)
+        num_assets = len(assets)
+        if num_assets >= 5:
+            factors["exposure_balance"] = 100
+        elif num_assets >= 3:
+            factors["exposure_balance"] = 75
+        elif num_assets >= 2:
+            factors["exposure_balance"] = 50
+        else:
+            factors["exposure_balance"] = 25
+        
+        # 8. Stablecoin Allocation (0-100, higher is safer)
+        stablecoin_weight = sum(
+            asset.percentage_of_portfolio
+            for asset in assets
+            if asset.token_symbol.upper() in ["USDC", "USDT", "DAI", "BUSD", "USDP"]
+        )
+        factors["stablecoin_allocation"] = stablecoin_weight  # 0-100 as percentage
+        
+        # 9. Protocol Distribution Risk (concentration across protocols)
+        protocol_weights = {}
+        for asset in assets:
+            protocol = asset.protocol or "unallocated"
+            protocol_weights[protocol] = protocol_weights.get(protocol, 0) + asset.percentage_of_portfolio
+        
+        protocol_hhi = sum((w / 100) ** 2 for w in protocol_weights.values())
+        factors["protocol_concentration"] = round(protocol_hhi * 100, 2)
+        
+        # 10. Asset Quality Score (blend of safety and liquidity)
+        # Higher quality = lower risk
+        quality_score = 0
+        for asset in assets:
+            # Score each asset (0-100, higher = better)
+            token = asset.token_symbol.upper()
+            if token in ["USDC", "USDT", "DAI"]:
+                asset_quality = 95  # Stablecoins
+            elif token in ["ETH", "WETH", "BTC", "mETH"]:
+                asset_quality = 85  # Major layer 1 / layer 2 assets
+            elif token in ["MNT", "MOE", "FUSION"]:
+                asset_quality = 70  # Mantle ecosystem
+            else:
+                asset_quality = 50  # Unknown/emerging
+            
+            weight = asset.percentage_of_portfolio / 100
+            quality_score += asset_quality * weight
+        
+        factors["asset_quality"] = round(quality_score, 2)
+        
+        return factors
     
     def _compute_overall_score(self, metrics: RiskMetrics) -> float:
         """Compute weighted overall score"""

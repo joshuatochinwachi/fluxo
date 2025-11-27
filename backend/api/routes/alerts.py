@@ -8,12 +8,11 @@ import logging
 
 from api.models.alerts import Alert
 from api.models.schemas import APIResponse
-# from services.alert_manager import AlertManager
 from tasks.alert_coordinator import coordinate_alerts, batch_alert_processing
 from tasks.periodic_tasks import periodic_portfolio_monitoring
 from celery.result import AsyncResult
 from core import celery_app
-from core.config import get_redis_connector
+from core.config import get_redis_connection 
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ router = APIRouter()
 # Initialize alert manager (in production, use dependency injection)
 
 
-@router.get("/")
+@router.get("/alerts")
 async def get_alerts(
     wallet_address: Optional[str] = Query(None, description="Filter by wallet address"),
     limit: int = Query(50, ge=1, le=100, description="Number of alerts to return")
@@ -34,18 +33,17 @@ async def get_alerts(
     - wallet_address: Optional filter by wallet
     - limit: Max number of alerts (default 50)
     """
-    
+    from services.alert_manager import AlertManager
     alert_manager = AlertManager()
     try:
-        alerts = alert_manager.get_alerts(wallet_address, limit)
-        
+        alerts = await alert_manager.get_alerts(wallet_address, limit)
+        print(alerts)
         return APIResponse(
             success=True,
             message=f"Retrieved {len(alerts)} alerts",
             data={
-                "alerts": [alert.to_dict() for alert in alerts],
-                "total": len(alerts),
-                "wallet_address": wallet_address
+                'wallet_address':wallet_address,
+                "alerts": [alert for alert in alerts]
             }
         )
     except Exception as e:
@@ -54,20 +52,23 @@ async def get_alerts(
 
 
 @router.get("/undelivered")
-async def get_undelivered_alerts():
+async def get_undelivered_alerts(
+    wallet_address:str
+):
     """
     Get all undelivered alerts (for x402 delivery service)
     """
     
+    from services.alert_manager import AlertManager
     alert_manager = AlertManager()
     try:
-        alerts = alert_manager.get_undelivered_alerts()
+        alerts = await alert_manager.get_undelivered_alerts(wallet_address)
         
         return APIResponse(
             success=True,
             message=f"Retrieved {len(alerts)} undelivered alerts",
             data={
-                "alerts": [alert.to_dict() for alert in alerts],
+                "alerts": [alert for alert in alerts],
                 "total": len(alerts)
             }
         )
@@ -78,15 +79,19 @@ async def get_undelivered_alerts():
 @router.post("/mark-delivered/{alert_id}")
 async def mark_alert_delivered(
     alert_id: str,
+    wallet_address:str,
     delivery_method: str = Query(..., description="Delivery method used")
 ):
     """
     Mark an alert as delivered
     Used by x402 delivery service after successful delivery
     """
+
+    
+    from services.alert_manager import AlertManager
     alert_manager = AlertManager()
     try:
-        alert_manager.mark_delivered(alert_id, delivery_method)
+        await alert_manager.mark_delivered(alert_id, delivery_method, wallet_address)
         
         return APIResponse(
             success=True,
@@ -204,14 +209,12 @@ async def add_wallet_to_tracking(
     Add wallet to periodic monitoring (every 15 minutes)
     """
     try:
-        redis_conn = get_redis_connector()
-        await redis_conn.connect()
-        
+        redis_conn = get_redis_connection()
         # Add to tracked wallets set
-        await redis_conn.redis.sadd("tracked_wallets", wallet_address)
+        await redis_conn.sadd("tracked_wallets", wallet_address)
         
         # Get current count
-        count = await redis_conn.redis.scard("tracked_wallets")
+        count = await redis_conn.scard("tracked_wallets")
         
         return APIResponse(
             success=True,
@@ -236,14 +239,14 @@ async def remove_wallet_from_tracking(
     Remove wallet from periodic monitoring
     """
     try:
-        redis_conn = get_redis_connector()
-        await redis_conn.connect()
+        redis_conn = get_redis_connection()
+        
         
         # Remove from tracked wallets set
-        removed = await redis_conn.redis.srem("tracked_wallets", wallet_address)
+        removed = await redis_conn.srem("tracked_wallets", wallet_address)
         
         if removed:
-            count = await redis_conn.redis.scard("tracked_wallets")
+            count = await redis_conn.scard("tracked_wallets")
             return APIResponse(
                 success=True,
                 message='Wallet removed from monitoring',
@@ -262,17 +265,17 @@ async def remove_wallet_from_tracking(
         logger.error(f"Failed to remove wallet from tracking: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
+# checked
 @router.get('/tracked-wallets')
 async def get_tracked_wallets():
     """
     Get list of all wallets being monitored
     """
     try:
-        redis_conn = get_redis_connector()
-        await redis_conn.connect()
+        redis_conn = get_redis_connection()
         
-        tracked_wallets = await redis_conn.redis.smembers("tracked_wallets")
+        
+        tracked_wallets = await redis_conn.smembers("tracked_wallets")
         
         return APIResponse(
             success=True,
@@ -290,6 +293,7 @@ async def get_tracked_wallets():
 
 @router.post('/manual-monitoring')
 async def trigger_manual_monitoring():
+    print('start mannual')
     """
     Manually trigger monitoring of all tracked wallets (bypasses schedule)
     """
@@ -311,7 +315,9 @@ async def trigger_manual_monitoring():
 
 @router.get("/health")
 async def alerts_health():
+    from services.alert_manager import AlertManager
     alert_manager = AlertManager()
+
     """Alert system health check"""
     total_alerts = len(alert_manager.alerts)
     undelivered = len(alert_manager.get_undelivered_alerts())
@@ -338,10 +344,10 @@ async def alerts_health():
         "endpoints": [
             "GET /alerts/ - Get alerts",
             "GET /alerts/undelivered - Get undelivered alerts",
-            "POST /alerts/mark-delivered/{alert_id} - Mark alert as delivered",
+            "POST /alerts/mark-delivered/{'alert_id'} - Mark alert as delivered",
             "POST /alerts/coordinate - Coordinate multi-agent alerts",
             "POST /alerts/batch - Batch process multiple wallets",
-            "GET /alerts/task-status/{task_id} - Check task status",
+            "GET /alerts/task-status/{'task_id'} - Check task status",
             "POST /alerts/track-wallet - Add wallet to monitoring",
             "DELETE /alerts/track-wallet - Remove wallet from monitoring",
             "GET /alerts/tracked-wallets - List tracked wallets",

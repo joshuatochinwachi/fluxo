@@ -4,7 +4,7 @@ Implements Kelvin's correlation hypothesis for Risk Agent integration
 Version: 2.0
 """
 
-from core.config import REDIS_CONNECT, MONGO_CONNECT
+from core.config import get_mongo_connection,get_redis_connection
 from core.pubsub.channel_manager import ChannelNames
 from data_pipeline.schemas.data_schemas import UserPortfolio
 from typing import Dict, Any, List, Optional
@@ -28,8 +28,8 @@ class MacroAgent:
     """
     
     def __init__(self):
-        self.redis_db = REDIS_CONNECT
-        self.mongo_db = MONGO_CONNECT
+        self.redis_db = get_redis_connection()
+        self.mongo_db = get_mongo_connection()
         
         # Kelvin's correlation thresholds (from Risk Agent doc)
         self.correlation_thresholds = {

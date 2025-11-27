@@ -21,6 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import motor.motor_asyncio
 from pymongo import MongoClient
+from redis.asyncio import Redis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +45,8 @@ class Settings(BaseSettings):
     anthropic_api_key:str
     gemini_api_key:str
     mongo_url:str
-
+    apitube_news:str
+    coindesk_news:str
 
     model_config = SettingsConfigDict(
         env_file=ENV_PATH,
@@ -53,12 +55,12 @@ class Settings(BaseSettings):
     )
 
 # Redis database client
-class Redisconnect:
-   from models.redis_connect import db_connector
-   
+# NOTE: avoid creating Redis connector at import time to prevent circular
+# imports (models.redis_connect imports core.config.Settings). Use the
+# `get_redis_connection` helper below which performs a lazy import and
+# returns a Redis connection instance on demand.
 
-   redis_connector = db_connector(max_connections=5)
-   redis_db = redis_connector.get_connection()
+
 
 # Mongo Db database client
 class MongodbConnect:
@@ -84,10 +86,29 @@ class MongodbConnect:
                 continue
 
 
+class redisConnect:
+    def __init__(self):
+        settings = Settings()
+
+        self.db_connect = Redis(
+            host='localhost',
+            port=6379,
+            db=1
+            # host=settings.redis_host,
+            # port=settings.redis_port,
+            # password=settings.redis_password,
+            # max_connections=max_connections
+        )
+     
+    def get_connection(self, db=None):
+        redis_connect = self.db_connect
+        return redis_connect
 
 
-REDIS_CONNECT = Redisconnect().redis_db
-MONGO_CONNECT = MongodbConnect().Mongo_Database()
+# Backwards-compatible placeholder. Call `get_redis_connection()` instead
+# of relying on an import-time instance.
+REDIS_CONNECT = None
+MONGO_CONNECT = None
 
 DEFILLAMA_URL_ENDPOINTS: Final[dict[str, str]] = {
     'protocols': 'https://api.llama.fi/protocols',
@@ -107,8 +128,10 @@ MANTLE_WSS_URL = 'wss://mantle.drpc.org'  # WebSocket endpoint for Mantle
 
 
 
-# Lazy loading function to avoid circular imports
-def get_redis_connector():
-    """Get Redis connector instance (lazy import to avoid circular dependency)"""
-    from models.redis_connect import db_connector
-    return db_connector
+def get_redis_connection(max_connections: int = 5):
+    connector = redisConnect()
+    return connector.get_connection()
+
+def get_mongo_connection():
+    connector = MongodbConnect()
+    return connector.Mongo_Database()

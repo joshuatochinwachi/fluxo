@@ -134,3 +134,95 @@ class AlertRule(BaseModel):
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_triggered: Optional[datetime] = None
+
+
+class AgentAlertSummary(BaseModel):
+    """Summary of alerts from a single agent"""
+    agent_name: str  # "risk", "macro", "social"
+    alerts_count: int
+    severity: AlertSeverity
+    primary_title: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentSection(BaseModel):
+    """Structured section for front-end display for each agent"""
+    agent_name: str
+    section_title: str
+    message: str
+    severity: AlertSeverity
+    key_metrics: Dict[str, Any] = Field(default_factory=dict)
+    items: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ConsolidatedAlert(BaseModel):
+    """
+    Consolidated multi-agent alert for a wallet.
+
+    Designed for front-end display: contains structured sections per agent,
+    a short header message, and raw alerts for reference.
+    """
+    alert_id: str = Field(default_factory=lambda: str(__import__('uuid').uuid4()))
+
+    # Primary info
+    wallet_address: str
+    title: str = "Portfolio Analysis Summary"
+
+    # Severity and priority
+    overall_severity: AlertSeverity
+
+    # Structured sections for front-end
+    agent_sections: List[AgentSection] = Field(default_factory=list)
+
+    # Consolidated metrics
+    total_alerts_triggered: int = 0
+    risk_score: Optional[float] = None
+    risk_level: Optional[str] = None
+    market_condition: Optional[str] = None
+
+    # Short header message suitable for notification list
+    message: str = ""
+
+    # All risk factors (from risk agent)
+    risk_factors: Dict[str, float] = Field(default_factory=dict)
+
+    # Recommendations across all agents
+    recommendations: List[str] = Field(default_factory=list)
+
+    # Metadata
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    analyses_completed: List[str] = Field(default_factory=list)  # ["risk", "macro", "social"]
+
+    # Storage and delivery
+    delivered: bool = False
+    delivery_method: Optional[str] = None
+
+    # Raw alert details for reference
+    raw_alerts: List[Dict[str, Any]] = Field(default_factory=list)
+
+    def to_dict(self):
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "alert_id": self.alert_id,
+            "wallet_address": self.wallet_address,
+            "title": self.title,
+            "overall_severity": self.overall_severity.value,
+            "total_alerts_triggered": self.total_alerts_triggered,
+            "risk_score": self.risk_score,
+            "risk_level": self.risk_level,
+            "market_condition": self.market_condition,
+            "message": self.message,
+            "agent_sections": [s.model_dump() for s in self.agent_sections],
+            "risk_factors": self.risk_factors,
+            "recommendations": self.recommendations,
+            "timestamp": self.timestamp.isoformat(),
+            "analyses_completed": self.analyses_completed,
+            "delivered": self.delivered,
+            "raw_alerts": self.raw_alerts,
+        }
+
+    def to_json(self):
+        """Convert to JSON string"""
+        import json
+        return json.dumps(self.to_dict())
+

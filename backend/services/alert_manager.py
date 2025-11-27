@@ -2,15 +2,17 @@
 Alert Manager Service
 Handles alert triggering, storage, and delivery coordination
 """
-from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+import asyncio
+import json
 import logging
 import uuid
 
+from typing import List, Dict, Optional
+from datetime import datetime, timedelta
 from api.models.alerts import (
     Alert, AlertType, AlertSeverity, AlertTrigger, AlertRule
 )
-
+from core.config import get_redis_connection
 logger = logging.getLogger(__name__)
 
 
@@ -28,11 +30,16 @@ class AlertManager:
         self.alerts: List[Alert] = []
         self.alert_history: Dict[str, List[datetime]] = {}
         
-        # Default alert triggers (based on Risk Agent thresholds)
+        self.user_alerts = 'USERS_ALERT'
+    # Don't resolve the Redis connection at import time to avoid
+    # circular imports; resolve lazily when first needed.
+        self.redis_con = get_redis_connection()
+
+            # Default alert triggers (based on Risk Agent thresholds)
         self.default_triggers = self._initialize_default_triggers()
         
         logger.info("AlertManager initialized")
-    
+
     def _initialize_default_triggers(self) -> Dict[AlertType, AlertTrigger]:
         """
         Initialize default alert triggers based on Risk Agent thresholds
@@ -108,61 +115,67 @@ class AlertManager:
         triggered_alerts = []
         
         # Check overall risk score
-        if risk_score >= 85:
+        if risk_score :#>= 85:
             alert = self._create_critical_risk_alert(
                 wallet_address, risk_score, risk_factors
             )
             if alert:
+                print('Critical trigger')
                 triggered_alerts.append(alert)
                 
-        elif risk_score >= 70:
+        elif risk_score :#>= 70:
             alert = self._create_high_risk_alert(
                 wallet_address, risk_score, risk_factors
             )
             if alert:
+                print('Critical 2 trigger')
                 triggered_alerts.append(alert)
         
         # Check concentration
         concentration = risk_factors.get("concentration", 0)
-        if concentration >= 60:
+        if concentration :#>= 60:
             alert = self._create_concentration_alert(
                 wallet_address, concentration
             )
             if alert:
+                print('Critical 3trigger')
                 triggered_alerts.append(alert)
         
         # Check liquidity
         liquidity = risk_factors.get("liquidity", 0)
-        if liquidity >= 60:
+        if liquidity:# >= 60:
             alert = self._create_liquidity_alert(
                 wallet_address, liquidity
             )
             if alert:
+                print('Critical 4 trigger')
                 triggered_alerts.append(alert)
         
         # Check contract risk
         contract_risk = risk_factors.get("contract_risk", 0)
-        if contract_risk >= 40:
+        if contract_risk :#>= 40:
             alert = self._create_contract_risk_alert(
                 wallet_address, contract_risk
             )
             if alert:
+                print('Critical 5 trigger')
                 triggered_alerts.append(alert)
         
         # Check market stress (correlation risk)
         correlation_risk = risk_factors.get("correlation_risk", 0)
-        if correlation_risk >= 70 or market_condition == "stressed_correlation":
+        if correlation_risk :#>= 70 or market_condition == "stressed_correlation":
             alert = self._create_market_stress_alert(
                 wallet_address, correlation_risk, market_condition
             )
             if alert:
+                
+                print('Critical 6 trigger')
                 triggered_alerts.append(alert)
         
-        # Store all triggered alerts
-        for alert in triggered_alerts:
-            self._store_alert(alert)
+       
         
         logger.info(f"Checked risk alerts for {wallet_address}: {len(triggered_alerts)} triggered")
+        print('Triggers',triggered_alerts)
         return triggered_alerts
     
     def _create_critical_risk_alert(
@@ -195,6 +208,7 @@ class AlertManager:
             current_value=risk_score,
             threshold=85.0,
             details={
+                "risk_scoree":risk_score,
                 "risk_factors": factors,
                 "main_driver": max_factor[0],
                 "action": "immediate_rebalance_required"
@@ -214,8 +228,8 @@ class AlertManager:
         """Create high risk score alert"""
         
         alert_key = f"{wallet_address}:high_risk"
-        if not self._check_cooldown(alert_key, 120):
-            return None
+        # if not self._check_cooldown(alert_key, 120):
+        #     return None
         
         alert = Alert(
             alert_id=str(uuid.uuid4()),
@@ -244,8 +258,8 @@ class AlertManager:
         """Create concentration warning alert"""
         
         alert_key = f"{wallet_address}:concentration"
-        if not self._check_cooldown(alert_key, 180):
-            return None
+        # if not self._check_cooldown(alert_key, 180):
+        #     return None
         
         alert = Alert(
             alert_id=str(uuid.uuid4()),
@@ -275,8 +289,8 @@ class AlertManager:
         """Create liquidity risk alert"""
         
         alert_key = f"{wallet_address}:liquidity"
-        if not self._check_cooldown(alert_key, 240):
-            return None
+        # if not self._check_cooldown(alert_key, 240):
+        #     return None
         
         alert = Alert(
             alert_id=str(uuid.uuid4()),
@@ -306,8 +320,8 @@ class AlertManager:
         """Create contract risk alert"""
         
         alert_key = f"{wallet_address}:contract_risk"
-        if not self._check_cooldown(alert_key, 360):
-            return None
+        # if not self._check_cooldown(alert_key, 360):
+        #     return None
         
         alert = Alert(
             alert_id=str(uuid.uuid4()),
@@ -338,8 +352,8 @@ class AlertManager:
         """Create market stress alert (Kelvin's correlation hypothesis)"""
         
         alert_key = f"{wallet_address}:market_stress"
-        if not self._check_cooldown(alert_key, 120):
-            return None
+        # if not self._check_cooldown(alert_key, 120):
+        #     return None
         
         alert = Alert(
             alert_id=str(uuid.uuid4()),
@@ -373,7 +387,7 @@ class AlertManager:
         
         last_triggered = self.alert_history[alert_key][-1]
         time_since = (datetime.utcnow() - last_triggered).total_seconds() / 60
-        
+        print('alertt checking Cool Down',alert_key)
         return time_since >= cooldown_minutes
     
     def _update_cooldown(self, alert_key: str):
@@ -394,29 +408,96 @@ class AlertManager:
         self.alerts.append(alert)
         logger.info(f"Stored alert: {alert.alert_type.value} for {alert.wallet_address}")
     
-    def get_alerts(
+    async def get_alerts(
         self,
         wallet_address: Optional[str] = None,
         limit: int = 50
     ) -> List[Alert]:
         """Retrieve alerts"""
         if wallet_address:
-            filtered = [a for a in self.alerts if a.wallet_address == wallet_address]
+            stored_alert_data = await self.retrieve_alert(wallet_address)
+            alerts =  stored_alert_data.get('alerts')
         else:
-            filtered = self.alerts
+            alerts = [None]
         
-        # Return most recent first
-        return sorted(filtered, key=lambda a: a.timestamp, reverse=True)[:limit]
+        # for a in alerts:
+        #     print(type(a))
+        return sorted(alerts, key=lambda a: a['timestamp'], reverse=True)[:limit]
     
-    def get_undelivered_alerts(self) -> List[Alert]:
+    async def get_undelivered_alerts(self,wallet_address:str) -> List[Alert]:
         """Get alerts pending delivery"""
-        return [a for a in self.alerts if not a.delivered]
+        stored_alert_data = await self.retrieve_alert(wallet_address)
+        alerts =  stored_alert_data.get('alerts')
+        undelivered_alert = []
+        for alert in alerts:
+            if not alert['delivered']:
+                undelivered_alert.append(alert)
+
+        return undelivered_alert
     
-    def mark_delivered(self, alert_id: str, delivery_method: str):
+    async def mark_delivered(self, alert_id: str, delivery_method: str,wallet_address:str):
         """Mark alert as delivered"""
-        for alert in self.alerts:
-            if alert.alert_id == alert_id:
-                alert.delivered = True
-                alert.delivery_method = delivery_method
+        from api.models.alerts import Alert
+
+        stored_alert_data = await self.retrieve_alert(wallet_address)
+        alerts =  stored_alert_data.get('alerts')
+        update_alert_status = []
+        for alert in alerts:
+            if alert.get('alert_id') == alert_id:
+                print('there is an alert id')
+                alert['delivered'] = True
+                alert['delivery_method'] = delivery_method
                 logger.info(f"Alert {alert_id} marked as delivered via {delivery_method}")
-                break
+               
+            
+            update_alert_status.append(alert)
+        self.store_alert(update_alert_status,wallet_address)
+        print('Updated Alert Delivery Status!')
+
+
+    def store_alert(self,all_alerts:list|dict,wallet_address:str):
+        alert_data = { 
+        'wallet_address':wallet_address,
+        'alerts':all_alerts
+    }
+        # Ensure we have a Redis connection (resolve lazily)
+        if self.redis_con is None:
+            # get_redis_connection returns a Redis instance
+            try:
+                self.redis_con = get_redis_connection()
+            except Exception as e:
+                logger.error(f"Failed to create redis connection: {e}")
+                raise
+
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(
+                self.redis_con.hset(self.user_alerts, wallet_address, json.dumps(alert_data)),
+                loop
+            )
+        except:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            # store in Redis with address as key reference
+            loop.run_until_complete(
+                self.redis_con.hset(self.user_alerts, wallet_address, json.dumps(alert_data))
+            )
+    
+    
+    async def retrieve_alert(self,wallet_address:str=None):
+        # loop = asyncio.new_event_loop()
+        # asyncio.set_event_loop(loop)
+
+        if self.redis_con is None:
+            try:
+                self.redis_con = get_redis_connection()
+            except Exception as e:
+                logger.error(f"Failed to create redis connection: {e}")
+                raise
+        stored_alert = await self.redis_con.hget(self.user_alerts, wallet_address)
+       
+        if stored_alert is None:
+            return {}
+
+        return json.loads(stored_alert)
+

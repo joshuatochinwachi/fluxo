@@ -1,5 +1,4 @@
 from celery import Celery
-from celery.schedules import crontab
 from .config import Settings
 import sys,os
 
@@ -29,7 +28,8 @@ celery_app = Celery(
         'tasks.agent_tasks.yield_task',
         # 'tasks.alert_coordinator',
         'tasks.periodic_tasks',
-        'tasks.agent_tasks.pipeline_task'
+        'tasks.agent_tasks.pipeline_task',
+        'tasks.alert_coordinator'
     ],
 )
 
@@ -89,11 +89,11 @@ celery_app.conf.beat_schedule = {
     #     'args':()
     # }
 
-    'test macro':{
-        'task':'tasks.agent_tasks.macro_task.macro_task',
-        'schedule':20,
-        'args':("0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64",)
-    }
+    # 'test macro':{
+    #     'task':'tasks.agent_tasks.macro_task.macro_task',
+    #     'schedule':20,
+    #     'args':("0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64",)
+    # }
 }
 
 celery_app.autodiscover_tasks(['tasks'])

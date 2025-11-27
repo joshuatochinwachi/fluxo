@@ -20,12 +20,12 @@ def social_task(self, token_symbol: str, platforms: list = None, alert_threshold
         print(f'Running social sentiment analysis for: {token_symbol}')
         
         # Lazy import to avoid circular dependency
-        from services.alert_manager import AlertManager
-        from agents.social_agent import SocialAgent
+        # from services.alert_manager import AlertManager
+        # from agents.social_agent import SocialAgent
         
-        # Initialize agents
-        social_agent = SocialAgent()
-        alert_manager = AlertManager()
+        # # Initialize agents
+        # social_agent = SocialAgent()
+        # alert_manager = AlertManager()
         
         # Default platforms
         if platforms is None:
@@ -59,7 +59,7 @@ def social_task(self, token_symbol: str, platforms: list = None, alert_threshold
         loop.close()
         
         print(f'Social analysis completed: {sentiment_result["overall_score"]}')
-        print(f'Triggered {len(triggered_alerts)} sentiment alerts')
+        print(f'Triggered {len(triggered_alerts)} Social sentiment alerts')
         
         return {
             'status': 'completed',

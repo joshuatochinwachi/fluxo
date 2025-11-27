@@ -1,3 +1,5 @@
+import ast
+import time
 import token
 import requests
 import asyncio
@@ -109,7 +111,7 @@ async def main():
     smart_money = AlertOrchestrator()
     await smart_money.process_event(event)
 
-asyncio.run(main())
+# asyncio.run(main())
 
 
 # from services.llm_providers import LLMClient
@@ -127,3 +129,20 @@ asyncio.run(main())
 #     lm.Call_gemini(prompt)
 
 # asyncio.run(main())
+
+# message = (
+#     f"Top  yield opportunities found:\n" +
+#     "\n" +'hell' +
+#     f"\nConsider diversifying across these protocols for optimal returns."
+# )
+# print(message)
+
+from tasks.digest_tasks import daily_news_digest
+
+x = daily_news_digest()
+
+# date = int(time.time())
+# from  datetime import datetime
+
+# tims = datetime.fromtimestamp(date).strftime("%Y-%m-%d %H:%M:%S")
+# print(tims)

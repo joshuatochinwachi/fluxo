@@ -13,7 +13,6 @@ from agents.risk_agent import RiskAgent
 from agents.social_agent import SocialAgent
 
 # Import services
-from services.alert_manager import AlertManager
 from services.ai_insights_engine import AIInsightsEngine
 from services.audit_feed_service import get_audit_service
 
@@ -45,7 +44,6 @@ class FluxoBackendIntegration:
         # Initialize all agents
         self.risk_agent = RiskAgent()
         self.social_agent = SocialAgent(use_mock=False)
-        self.alert_manager = AlertManager()
         self.ai_engine = AIInsightsEngine()
         self.audit_service = get_audit_service()
         
@@ -148,10 +146,12 @@ class FluxoBackendIntegration:
         
         # ============= 5. ALERT TRIGGERING =============
         logger.info("🔔 Step 5: Alert Check")
+        from services.alert_manager import AlertManager
+        alert_manager = AlertManager()
         try:
             risk_score = results.get("risk_analysis", {}).get("risk_score", 0)
             if risk_score >= 70:
-                alert_result = await self.alert_manager.check_risk_alerts(
+                alert_result = await alert_manager.check_risk_alerts(
                     wallet_address=wallet_address,
                     risk_score=risk_score,
                     risk_factors={},

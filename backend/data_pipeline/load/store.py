@@ -7,13 +7,13 @@ class StoreData:
         pass
 
     def store_protocol_data(self,protocol_data:list,data_name:str)->None:
-        from core.config import MONGO_CONNECT
-
+        from core.config import get_mongo_connection
+        mongo_db =  get_mongo_connection()
         if data_name == 'yield_data':
-            update_collection = MONGO_CONNECT['Yield_Protocol']
+            update_collection = mongo_db['Yield_Protocol']
             store_id = "Mantle_yield_protocol"
         else:
-            update_collection = MONGO_CONNECT['Mantle_Protocol']
+            update_collection = mongo_db['Mantle_Protocol']
             store_id = "Mantle_Protocols"
         if not protocol_data:
             return 

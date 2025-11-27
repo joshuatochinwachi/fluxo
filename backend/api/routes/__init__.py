@@ -12,6 +12,7 @@ from .yield_opportunity import router as yield_router
 from .social import router as social_router
 from .alerts import router as alerts_router
 from .system import router as system_router
+from .digest import router as digest_router
 
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     'yield_router',
     'social_router',
     'alerts_router',
-    'system_router'
+    'system_router',
+    'digest_router'
     
 ]

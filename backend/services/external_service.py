@@ -1,11 +1,15 @@
 import asyncio
+import time
+import uuid
 import aiohttp
 from typing import Dict, Any
+from datetime import datetime
+from core.config import Settings
 
 
 class ExternalService:
     def __init__(self):
-        pass
+        self.settings = Settings()
 
 
     async def dex_screener_price_data(self,token_address:str)->Dict[str,Any]|None:
@@ -33,4 +37,48 @@ class ExternalService:
                         'price_change_1hr':price_change_1hr
                     }
                     return price_info
+
+    
+    async def Apitube_new(self):
+        url = ''
+        header = {
+            'X-API-Key': self.settings.apitube_news
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get() as response:
+                pass
+
+
+    async def Coindesk_news(self,limit:int=10):
+        url = f'https://data-api.coindesk.com/news/v1/article/list?lang=EN&limit={limit}'
+        headers = {
+            'X-API-Key': self.settings.coindesk_news
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url,headers=headers) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    news_datas = result.get('Data',[])
+                    if not news_datas:
+                        return {}
+                    
+                    news = [
+                        {
+                            "id":str(uuid.uuid4()),
+                            "title": nw.get('TITLE'),
+                            "summary": nw.get('BODY','')[:200] + ".....",
+                            "url": nw.get('URL','https://...'),
+                            'source': nw.get('SOURCE_DATA',{}).get('URL','https://coindesk.com'),
+                            'published_at': datetime.fromtimestamp(int(nw.get('PUBLISHED_ON',{int(time.time())}))).strftime("%Y-%m-%d %H:%M:%S"),
+                            'relevance': 0.9,
+                            'categories': [ ct.get('CATEGORY') for ct in nw.get('CATEGORY_DATA',{}) if ct][:5],
+                            'tags': [ 'cyrpto New']
+
+                        }
+                        for nw in news_datas if nw 
+                    ]
+                    # print(news)
+                    return news
+                else:
+                    print(response.status)
 

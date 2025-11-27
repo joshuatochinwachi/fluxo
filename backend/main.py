@@ -26,8 +26,8 @@ from api import (
     yield_router,
     social_router,
     alerts_router,
-    system_router
-
+    system_router,
+    digest_router
 )
 
 # Configure logging
@@ -41,12 +41,24 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting Redis listener for whale updates")
-    listener_task = asyncio.create_task(user_subscribed_tokens_update())
+    from data_pipeline.pipeline import Pipeline
+    from agents.automation_agent import automation_agent
+    from agents.onchain_agent import onchain_agent
+
+    pipe = Pipeline()
+    agen = automation_agent()
+    onch = onchain_agent()
+    # listener = asyncio.create_task(pipe.watch_transfers())
+    listener_1 = asyncio.create_task(agen.Receive_automation_data())
+    listener_2 = asyncio.create_task(onch.Receive_onchain_transfer())
+    # listener_task = asyncio.create_task(user_subscribed_tokens_update())
 
     yield
 
     # Shutdown
-    listener_task.cancel()
+    # listener.cancel()
+    listener_1.cancel()
+    listener_2.cancel()
     print("🛑 Stopped Redis listener")
 
 # Initialize FastAPI app
@@ -74,6 +86,7 @@ app.include_router(social_router,prefix='/agent')
 app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(portfolio_router, prefix="/api/v1/agent/portfolio", tags=["portfolio"])
 app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
+app.include_router(digest_router, prefix="/api/v1/daily", tags=["market-update"])
 
 
 # CORS middleware

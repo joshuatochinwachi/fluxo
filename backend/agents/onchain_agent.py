@@ -1,7 +1,8 @@
+import ast
+import asyncio
 from typing import List
-from core.config import get_redis_connector
+from core.config import get_redis_connection
 from core.pubsub.channel_manager import ChannelNames
-import json
 import logging
 from datetime import datetime, UTC
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class onchain_agent:
     def __init__(self):
-        self.redis_db = get_redis_connector()
+        self.redis_db = get_redis_connection()
         
         # ADD YOUR LOGIC - Whale thresholds
         self.whale_thresholds = {
@@ -20,46 +21,60 @@ class onchain_agent:
             "default": 100000
         }
     
-    # KEEP FREEMAN'S PUB/SUB STRUCTURE
     async def Receive_onchain_transfer(self):
-        await self.redis_db.connect()
-        pubsub = self.redis_db.redis.pubsub()
+        """
+        Recieves Larger token transfer Event From Onchain 
+        Pass it to smart money process
+        pass it to whale detection Process
+        """
+        
+        pubsub = self.redis_db.pubsub()
         await pubsub.subscribe(ChannelNames.ONCHAIN.value)
 
         async for message in pubsub.listen():
-            if message['type'] != 'message':
-                continue
-            data = message['data']
-            print(f"Received onchain transfer data: {data}")
-            # Process the onchain transfer data as needed
-
-            whale_threshold = 100_000
-            if float(data['amount_usd']) < whale_threshold:
-                continue
-
-            from  tasks.alert_coordinator import process_smart_money
-            # pushing to smart money process
-            process_smart_money.delay(data)
-
-            # pubslish the whale data to other agents listening.
-            await self.redis_db.publish(ChannelNames.WHALE_MOVEMENT, data)
-            
-            # ===== ADD YOUR WHALE DETECTION LOGIC HERE =====
             try:
-                transfer_data = json.loads(data) if isinstance(data, str) else data
+                if message['type'] != 'message':
+                    print('No Data for onchaiin')
+                    continue
+                data = message['data']
+                print(f"Received onchain transfer data: {data}")
+                # Process the onchain transfer data as needed
+
+                whale_threshold = 100_000
+                data = data.decode('utf-8')
+                data = ast.literal_eval(data)
+                if float(data['amount_usd']) > whale_threshold: # TODO change the equality
+                    continue
+            
+                # Lazy Import (Avoid Circular Error)
+                from agents.orchestrator import AlertOrchestrator
+
+                # Push To Alert Porcessor 
+                alert = AlertOrchestrator()
+                asyncio.create_task(alert.process_event(data))
                 
-                # YOUR WHALE DETECTION
-                whale_analysis = await self.detect_whale(transfer_data)
+            except:
+                pass
+
+            # # pubslish the whale data to other agents listening.
+            # await self.redis_db.publish(ChannelNames.WHALE_MOVEMENT, data)
+            
+            # # ===== ADD YOUR WHALE DETECTION LOGIC HERE =====
+            # try:
+            #     transfer_data = json.loads(data) if isinstance(data, str) else data
                 
-                # Only publish if whale detected
-                if whale_analysis["is_whale"]:
-                    await self.redis_db.redis.publish(
-                        'whale_watch_channel',
-                        json.dumps(whale_analysis)
-                    )
-                    logger.info(f"🐋 Whale detected: {whale_analysis['summary']}")
-            except Exception as e:
-                logger.error(f"❌ Whale detection failed: {str(e)}")
+            #     # YOUR WHALE DETECTION
+            #     whale_analysis = await self.detect_whale(transfer_data)
+                
+            #     # Only publish if whale detected
+            #     if whale_analysis["is_whale"]:
+            #         await self.redis_db.redis.publish(
+            #             'whale_watch_channel',
+            #             json.dumps(whale_analysis)
+            #         )
+            # #         logger.info(f"🐋 Whale detected: {whale_analysis['summary']}")
+            # except Exception as e:
+            #     logger.error(f"❌ Whale detection failed: {str(e)}")
     
     # ADD YOUR WHALE DETECTION METHOD
     async def detect_whale(self, transfer_data: dict) -> dict:
@@ -79,10 +94,5 @@ class onchain_agent:
             "timestamp": datetime.now(UTC).isoformat()
         }
     
-    # KEEP FREEMAN'S METHOD
-    async def protocols(self):
-        protocols_data = await self.source.fetch_protocol_data()
-        return protocols_data
-
-
+    
             
