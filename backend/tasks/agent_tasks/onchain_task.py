@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+from celery import shared_task
 from core import celery_app
 
 @celery_app.task
@@ -27,6 +28,22 @@ def protocol_task()->bool:
     )
 
     return protocol_data
+
+@shared_task
+def transaction_task()->None:
+    """
+        Fetch User Transactions and Update to db
+    """
+    from agents.onchain_agent import onchain_agent
+
+    onchain_agent = onchain_agent()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    loop.run_until_complete(
+        onchain_agent.fetch_transaction_and_update_db()
+    )
+
 
 
 

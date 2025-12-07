@@ -3,18 +3,48 @@ Risk Analysis Celery Task - Enhanced with Alert Triggering
 """
 
 from core import celery_app
+from core.config import get_redis_connection
 import asyncio
-@celery_app.task(bind=True, name="risk_analysis")
-def risk_task(self, wallet_address: str, network: str = "mantle", market_correlation: float = None):
+
+@celery_app.task
+def risk_task(none_track_address: str = None, network: str = "mantle", market_correlation: float = None):
+    """
+       Retrieve User  risk anaysis 
+       none_track_address means address that is used to call fron the external source rather than background task
+       If the none_track_address has no risk analysis in DB , proceed to analysis
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    redis_con = get_redis_connection()
+    if not none_track_address:
+        tracked_wallet = loop.run_until_complete(
+            redis_con.smembers("tracked_wallets")
+        )
+    else: 
+        risk_analysis = _retrieve_risk_analysis(none_track_address)
+        if risk_analysis:
+            return risk_analysis
+        
+        tracked_wallet = [none_track_address]
+
+    for wallet_address in tracked_wallet:
+        risk_analysis, risk_agent = risk_worker(wallet_address.decode() if not none_track_address else wallet_address)
+        if  not none_track_address:
+            risk_agent.update_user_risk_analysis(wallet_address.decode(),risk_analysis)
+        else:
+            return risk_analysis
+
+def _retrieve_risk_analysis(wallet_address:str):
+    from agents.risk_agent import RiskAgent
+    risk_agent  = RiskAgent()
+    risk_agent = risk_agent.retrieve_user_risk_analysis(wallet_address)
+    return risk_agent
+
+
+def risk_worker( wallet_address: str, network: str = "mantle", market_correlation: float = None):
     """
     Enhanced background task with alert triggering
     """
-    # try:
-    self.update_state(
-        state='PROCESSING',
-        meta={'status': 'Analyzing portfolio risk...', 'progress': 0}
-    )
-    
     print(f'Running risk analysis for wallet: {wallet_address}')
 
     # lazy import to avoidd circular dependency
@@ -31,10 +61,6 @@ def risk_task(self, wallet_address: str, network: str = "mantle", market_correla
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    self.update_state(
-        state='PROCESSING',
-        meta={'status': 'Calculating risk factors...', 'progress': 40}
-    )
     
     # Fetch user portolio
     portfolio =  loop.run_until_complete(
@@ -43,11 +69,6 @@ def risk_task(self, wallet_address: str, network: str = "mantle", market_correla
 
     # Execute risk analysis
     risk_score = risk_agent.analyze_portfolio(portfolio, market_correlation)
-    
-    self.update_state(
-        state='PROCESSING',
-        meta={'status': 'Checking alert triggers...', 'progress': 70}
-    )
     
     # Check if any alerts should be triggered
     triggered_alerts_list = loop.run_until_complete(
@@ -130,7 +151,7 @@ def risk_task(self, wallet_address: str, network: str = "mantle", market_correla
         'alerts': consolidated_alerts,
         'agent': 'risk',
         'version': '2.0_with_consolidated_alerts'
-    }
+    }, risk_agent
             
     # except Exception as e:
     #     print(f'Risk analysis failed: {str(e)}')
@@ -145,3 +166,4 @@ def risk_task(self, wallet_address: str, network: str = "mantle", market_correla
     #         'error': str(e),
     #         'agent': 'risk'
     #     }
+

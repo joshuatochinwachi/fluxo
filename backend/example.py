@@ -137,12 +137,29 @@ async def main():
 # )
 # print(message)
 
-from tasks.digest_tasks import daily_news_digest
+# from tasks.agent_tasks import risk_task
 
-x = daily_news_digest()
+# risk_task('0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64',)
 
-# date = int(time.time())
-# from  datetime import datetime
 
-# tims = datetime.fromtimestamp(date).strftime("%Y-%m-%d %H:%M:%S")
-# print(tims)
+# from data_pipeline.ingestion.dune_service import DuneService
+
+# dune = DuneService()
+
+# async def main():
+#     await dune.user_transactions('0xD51465F03622bAC36D391Ec752561F4516424C05')
+
+# asyncio.run(main())
+
+# from data_pipeline.ingestion.mantle_api import MantleAPI
+# mantle = MantleAPI()
+
+
+from agents.portfolio_agent import portfolio_agent
+
+pipe = portfolio_agent()
+
+async def main():
+    data  = await pipe.analyze_portfolio('0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64')
+    print(data)
+asyncio.run(main())

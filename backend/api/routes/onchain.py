@@ -1,7 +1,9 @@
+import logging
 import uuid
-from fastapi import APIRouter,WebSocket,WebSocketDisconnect
+from fastapi import APIRouter,WebSocket,WebSocketDisconnect,HTTPException
 from tasks.agent_tasks import onchain_task
 from tasks.agent_tasks.onchain_task import protocol_task
+from api.models.schemas import APIResponse
 
 from celery.result import AsyncResult
 from core import celery_app
@@ -14,40 +16,29 @@ redis_db = redis_connect.get_connection()
 
 smart_money_session : dict[str, WebSocket] = {}
 
-@router.get('/onchain')
+logger = logging.getLogger(__name__)
+
+@router.get('/')
 async def onchain():
     task = onchain_task.delay() # adding the background worker
     # logic
     return {'agent':'onchain ','task_id': task.id}
 
-# Fetching onchain results
-@router.get('/onchain/status/{task_id}')
-async def get_onchain_result(task_id:str):
-    task_result = AsyncResult(task_id, app=celery_app)
+    
 
-    return {
-        "task_id": task_id,
-        "status": task_result.status,
-        "result": task_result.result
-    }
 
 @router.get('/protocols')
 async def protocols():
     task = protocol_task.delay() # adding the background worker
     # logic
-    return {'agent':'onchain ','task_id': task.id}
-
-# Fetching protocols results
-@router.get('/protocols/status/{task_id}')
-async def get_onchain_result(task_id:str):
-    task_result = AsyncResult(task_id, app=celery_app)
-
-    return {
-        "task_id": task_id,
-        "status": task_result.status,
-        "result": task_result.result
-    }
-
+    return APIResponse(
+        success=True,
+        message=f'Mantle Protocol Loading For ',
+        data={
+            'task_id':task.id,
+            'check_status':f"/onchain/status/{task.id}"
+        }
+    )
 
 
 @router.websocket('/smart_money')
@@ -92,6 +83,66 @@ async def user_subscribed_tokens_update():
                     print(f"Error sending message to {session_id}: {e}")
                     continue
 
+
+@router.get('/transactions')
+async def user_transactions(wallet_address:str):
+    from agents.onchain_agent import onchain_agent
+    onchain = onchain_agent()
+    if not wallet_address:
+        return {}
+    
+    task = (wallet_address)
+    return APIResponse(
+        success=True,
+        message=f'Fetch Transactions For {wallet_address}',
+        data={
+            'task_id':None,
+            'result': await onchain.retrieve_transcton_from_db(wallet_address)
+        }
+    )
+
+
+# Fetching onchain results
+@router.get('/status/{task_id}')
+async def get_onchain_result(task_id:str):
+    task_result = AsyncResult(task_id, app=celery_app)
+
+    try:
+        task_result = AsyncResult(task_id, app=celery_app)
+        
+        if task_result.ready():
+            return APIResponse(
+                success=True,
+                message='Task completed',
+                data={
+                    'task_id': task_id,
+                    'status': 'completed',
+                    'result': task_result.result
+                }
+            )
+        elif task_result.failed():
+            return APIResponse(
+                success=False,
+                message='Task failed',
+                data={
+                    'task_id': task_id,
+                    'status': 'failed',
+                    'error': str(task_result.info)
+                }
+            )
+        else:
+            return APIResponse(
+                success=True,
+                message='Task in progress',
+                data={
+                    'task_id': task_id,
+                    'status': 'processing',
+                    'message': 'Transaction  fetching in progress...'
+                }
+            )
+    except Exception as e:
+        logger.error(f"Failed to get task status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

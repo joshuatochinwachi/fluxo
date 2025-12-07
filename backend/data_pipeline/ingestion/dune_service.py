@@ -1,3 +1,4 @@
+from urllib import response
 import aiohttp
 from typing import List
 
@@ -107,3 +108,159 @@ class DuneService:
             'decimal':token_info.get('decimals',18),
             'total_supply':token_info.get('total_supply',0)
         }
+    
+    async def user_transactions(self, wallet_address:str):
+        url = DUNE_SERVICE_ENDPOINTS['transaction'] + f"/{wallet_address}"
+        headers = {
+            "X-Sim-Api-Key":self.settings.dune_api_key
+        }
+        params = {
+            'chain_ids':5000,  #  Mantle Chain ID,
+            'decode': 'true'
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url,headers=headers,params=params) as response:
+                if response.status != 200:
+                    return 
+                
+                result = await response.json()
+                parsed_transaction =  await self._parse_transaction(result)
+                return parsed_transaction
+
+
+    async def _parse_transaction(self,trx_data:dict):
+        if not trx_data:
+            return 
+        
+        decoded_transaction = []
+        for index ,tx in enumerate(trx_data['transactions']):
+            if tx.get('chain') != 'mantle':
+                continue
+            
+            tx_time = tx.get('block_time')
+            trx_status = tx.get('success')
+            filterd_tx = await self._filter_decodes(tx)
+            decoded_transaction.append(
+                {
+                'transaction_status':trx_status,
+                'transaction_time':tx_time,
+                'transaction':filterd_tx
+                }
+                )
+            
+        return decoded_transaction
+
+
+    async def _filter_decodes(self,decode_logs:list):
+        if not decode_logs:
+            return 
+        
+        tx_logs_mapping = {}
+        for log in decode_logs.get('logs'):
+            log_mapping = {
+                log.get('decoded',{}).get('name','Nan')  : log.get('decoded')
+            }
+            tx_logs_mapping.update(log_mapping)
+
+        tx_hierachy = [
+            'Swap',
+            'Approval',
+            'Transfer',
+            'Deposit'
+        ]
+
+        if tx_hierachy[0] in  tx_logs_mapping:
+            swap_log_data = tx_logs_mapping[ tx_hierachy[0]]
+            decode_data = swap_log_data.get('inputs')
+            mapping_swap_info = {
+                input_data.get('name') : input_data for input_data in decode_data
+            }
+
+            amount_in = mapping_swap_info.get('amount1',{}).get('value')
+            amount_out = mapping_swap_info.get('amount0',{}).get('value')
+
+            return {
+                'transaction_type':"Token Swap",
+                'hash':decode_logs.get('hash'),
+                'token':'token',
+                'amount_in':amount_in,
+                'amount_out':amount_out
+            }
+        
+        
+        if tx_hierachy[1] in tx_logs_mapping:
+            apporval_log_data = tx_logs_mapping[tx_hierachy[1]]
+            decode_data = apporval_log_data.get('inputs')
+            mapping_approval_info = {
+                input_data.get('name') : input_data for input_data in decode_data
+            }
+
+            spender = mapping_approval_info.get('spender',{}).get('value')
+            owner = mapping_approval_info.get('owner',{}).get('value')
+            amount = mapping_approval_info.get('value',{}).get('value')
+
+            return {
+                'transaction_type':'Token Approval',
+                'hash':decode_logs.get('hash'),
+                'token': 'tokekn',
+                'spender':spender,
+                'owner':owner,
+                'amount':amount
+            }
+        
+
+        if tx_hierachy[2] in  tx_logs_mapping:
+            transfer_log_data = tx_logs_mapping[tx_hierachy[2]]
+            decode_data = transfer_log_data.get('inputs')
+            mapping_transfer_info = {
+                input_data.get('name') : input_data for input_data in decode_data
+            }
+
+            sender = mapping_transfer_info.get('sender',{}).get('value')
+            recipient = mapping_transfer_info.get('recipient',{}).get('value')
+            amount = mapping_transfer_info.get('amount',{}).get('value')
+
+            return {
+                'transaction_type':'Token Transfer',
+                'hash': decode_logs.get('hash'),
+                'sender': sender,
+                'receiver':recipient,
+                'token': 'token',
+                'amount':amount
+            }
+        
+        
+        if tx_hierachy[3] in tx_logs_mapping:
+            deposit_log_data =  tx_logs_mapping[tx_hierachy[3]]
+            decode_data = deposit_log_data.get('inputs')
+            mapping_deposit_info = {
+                input_data.get('name') : input_data for input_data in decode_data
+            }
+
+            amount = mapping_deposit_info.get('amount',{}).get('amount')
+            return {
+                'transaction_type': 'Token Deposit',
+                'amount':amount
+            }
+        
+
+        return {
+            'transaction_type':'Unknown',
+            'token':'token',
+            'hash':decode_logs.get('hash')
+        }
+
+
+        
+
+
+            
+
+
+
+
+
+
+            
+
+

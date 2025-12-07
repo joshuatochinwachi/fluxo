@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     mongo_url:str
     apitube_news:str
     coindesk_news:str
+    etherscan:str
+    twitter_api_key:str
 
     model_config = SettingsConfigDict(
         env_file=ENV_PATH,
@@ -132,7 +134,8 @@ DEFILLAMA_URL_ENDPOINTS: Final[dict[str, str]] = {
 
 DUNE_SERVICE_ENDPOINTS : Final[dict[str, str]] = {
     'balances':'https://api.sim.dune.com/v1/evm/balances',
-    'token_info':'https://api.sim.dune.com/v1/evm/token-info'
+    'token_info':'https://api.sim.dune.com/v1/evm/token-info',
+    'transaction':'https://api.sim.dune.com/v1/evm/transactions'
 }
 
 MANTLE_RPC_URL = 'https://mantle.drpc.org'  # This is a public RPC endpoint for Mantle

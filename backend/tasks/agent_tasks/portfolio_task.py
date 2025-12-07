@@ -9,8 +9,8 @@ from core import celery_app
 
 
 @celery_app.task
-def portfolio_task(wallet_address:str)->List:
-    print('Fecthing User Portfolio')
+def portfolio_task()->None:
+    print('Fetching User Portfolio')
 
     # import to avoid circular import erro
     from agents.portfolio_agent import portfolio_agent
@@ -19,8 +19,6 @@ def portfolio_task(wallet_address:str)->List:
     asyncio.set_event_loop(loop)
 
     portfolio = portfolio_agent()
-    portfolio_data = loop.run_until_complete(
-        portfolio.analyze_portfolio(wallet_address)
+    loop.run_until_complete(
+        portfolio.analyze_portfolio()
     )
-
-    return portfolio_data

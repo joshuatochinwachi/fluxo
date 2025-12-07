@@ -37,3 +37,9 @@ class TokenData:
 @dataclass
 class TokenBalance:
     balance:float
+
+@dataclass
+class Transaction:
+    transaction_status:bool
+    transaction_time: str
+    transaction:dict

@@ -7,13 +7,14 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import logging
 
-from tasks.agent_tasks import portfolio_task
 from celery.result import AsyncResult
 from core import celery_app
 from api.models.schemas import APIResponse, PortfolioInput
 from services.ai_insights_engine import AIInsightsEngine
+from api.models.schemas import APIResponse
 from agents.risk_agent import RiskAgent
 from agents.social_agent import SocialAgent
+from agents.portfolio_agent import portfolio_agent
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,21 @@ router = APIRouter()
 # ============= FREEMAN'S ORIGINAL ENDPOINTS (KEEP THESE) =============
 
 @router.get('/portfolio')
-async def portfolio(address: str) -> Dict:
-    """Freeman's portfolio task endpoint"""
-    task = portfolio_task.delay(address)
-    return {'agent': 'portfolio', 'task_id': task.id}
+async def portfolio(address: str)->APIResponse:
+    portf = portfolio_agent()
+    data =   await portf.retrieve_portfolio_data(address)
+    # return {'data':'result'}
+    return APIResponse(
+        success=True,
+        message=f'User Portfolio Data',
+        data={
+            'task_id':None,
+            'result': data
+        }
+    )
 
-
-@router.get('/portfolio/status/{task_id}')
+@router.get('/status/{task_id}')
 async def get_portfolio_result(task_id: str):
-    """Freeman's task status endpoint"""
     task_result = AsyncResult(task_id, app=celery_app)
     
     return {

@@ -78,13 +78,13 @@ app.include_router(macro_router,prefix='/agent')
 app.include_router(market_data_router,prefix='/agent')
 #app.include_router(portfolio_router,prefix='/agent')
 app.include_router(research_router,prefix='/agent')
-app.include_router(risk_router,prefix='/agent')
+app.include_router(risk_router,prefix='/api/agent/risk',tags=['Risk'])
 app.include_router(x402_router,prefix='/agent')
-app.include_router(onchain_router,prefix='/agent')
+app.include_router(onchain_router,prefix='/api/agent/onchain',tags=['Onchain'])
 app.include_router(yield_router,prefix='/agent')
 app.include_router(social_router,prefix='/agent')
 app.include_router(alerts_router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(portfolio_router, prefix="/api/v1/agent/portfolio", tags=["portfolio"])
+app.include_router(portfolio_router, prefix="/api/v1/agent", tags=["portfolio"])
 app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
 app.include_router(digest_router, prefix="/api/v1/daily", tags=["market-update"])
 
@@ -117,3 +117,6 @@ async def health_check():
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+
+

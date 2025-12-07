@@ -83,16 +83,34 @@ celery_app.conf.update({
 
 
 celery_app.conf.beat_schedule = {
-    # 'test_beat':{
+    
+    # 'Mantle_Yield':{
     #     'task':'tasks.agent_tasks.pipeline_task.mantle_yield',
     #     'schedule':20,
     #     'args':()
     # }
 
+    # 'user_portfolio':{
+    #     'task':'tasks.agent_tasks.portfolio_task.portfolio_task',
+    #     'schedule':20,
+    #     'args':()
+    # },
+
+    'Risk_Analysis':{
+        'task':'tasks.agent_tasks.risk_task.risk_task',
+        'schedule':20,
+        'args':()
+    },
+
     # 'test macro':{
     #     'task':'tasks.agent_tasks.macro_task.macro_task',
     #     'schedule':20,
     #     'args':("0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64",)
+    # },
+
+    # 'User_trasaction':{
+    #     'task':'tasks.agent_tasks.onchain_task.transaction_task',
+    #     'schedule':20,
     # }
 }
 

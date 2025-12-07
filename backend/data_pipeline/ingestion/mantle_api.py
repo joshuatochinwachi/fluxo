@@ -1,5 +1,8 @@
+from datetime import datetime
 import logging
+import aiohttp
 from typing import List,Optional,AsyncIterator
+from aiohttp import ClientSession as session
 from pydantic import BaseModel
 
 from web3 import Web3,AsyncHTTPProvider,AsyncWeb3,WebSocketProvider
@@ -7,7 +10,7 @@ from eth_utils import to_checksum_address
 from eth_abi import decode
 from eth_abi.exceptions import InsufficientDataBytes
 
-from core.config import MANTLE_RPC_URL,MANTLE_WSS_URL
+from core.config import MANTLE_RPC_URL,MANTLE_WSS_URL, Settings
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,7 @@ class MantleAPI:
         self.subscription_id : Optional[str] = None
         self.w3 = None
         self.web3 = AsyncWeb3(AsyncHTTPProvider(MANTLE_RPC_URL))
+        self.settings =  Settings()
 
     # Fetch MNT user balance
     async def get_balance(self, address: str) -> float:
@@ -127,3 +131,168 @@ class MantleAPI:
         except InsufficientDataBytes as e:
             logger.error(f"Error decoding event data: {e}")
             return None
+    
+    async def _normal_transactions(self,wallet_address:str,session:session)->None|dict:
+        print(f'Fetching Normal Transaction For Wallet {wallet_address}')
+        """
+            This gets the normal transaction made by the user wallet
+        """
+        url = "https://api.etherscan.io/v2/api"
+        params = {
+            "chainid":'5000',
+            "action":"txlist",
+            "address":wallet_address,
+            "startblock":0,
+            "sort":"desc",
+            "apikey":self.settings.etherscan,
+            "module":"account"
+        }
+        async with session.get(url=url, params=params) as response:
+            if response.status != 200:
+                return 
+            
+            result =  await response.json()
+            if not result:
+                return 
+            if not  (
+                tx_results := result.get('result')
+            ):
+                return 
+            
+            tx_mapping = {
+                tx.get('hash') : {
+                    'tx_hash':tx.get('hash'),
+                    "from":tx.get('from'),
+                    "to":tx.get('to'),
+                    'value':tx.get('value'),
+                    'gas_used':tx.get('gasUsed'),
+                    "timestamp":tx.get('timeStamp'),
+                    'function_name':tx.get('functionName'),
+                    'methodId':tx.get('methodId')
+
+                }
+                for tx in tx_results if tx
+            }
+            return tx_mapping
+        
+    async def _token_transactions(self,wallet_address:str,session:session)->None|dict:
+        print(f'Fetching Token Tranasction For Wallet {wallet_address}')
+        """
+        Get user token transfer transaction
+        This usually get the tranfer made when selling token
+        """
+        url = "https://api.etherscan.io/v2/api"
+        params = {
+            "chainid":'5000',
+            "action":"tokentx",
+            "address":wallet_address,
+            "startblock":0,
+            "sort":"desc",
+            "apikey":self.settings.etherscan,
+            "module":"account"
+        }
+
+        async with session.get(url=url, params=params) as response:
+            if response.status != 200:
+                return 
+            
+            result =  await response.json()
+            if not result:
+                return 
+            if not  (
+                tx_results := result.get('result')
+            ):
+                return 
+            
+            tx_mapping = {
+                tx.get('hash') : {
+                    'tx_hash':tx.get('hash'),
+                    "from":tx.get('from'),
+                    "to":tx.get('to'),
+                    'value':tx.get('value'),
+                    'gas_used':tx.get('gasUsed'),
+                    "timestamp":tx.get('timeStamp'),
+                    'function_name':tx.get('functionName'),
+                    "contract_interacted":tx.get('contractAddress'),
+                    "value": tx.get('value'),
+                    "tokenName": tx.get('tokenName'),
+                    "tokenSymbol": tx.get('tokenSymbol'),
+                    "tokenDecimal": tx.get('tokenDecimal')
+                }
+                for tx in tx_results
+            }
+            return tx_mapping
+        
+    
+    def _aggregate_transactions(self,token_transfers:dict,normal_transactions:dict)->None|dict:
+        print(f'Aggregating Transaction For wallet ')
+        """
+         Combine User normal transaction and the token transfer transactions
+        """
+        if not token_transfers and not normal_transactions :
+            return 
+        
+        if token_transfers is None:
+            token_transfers = {}
+
+        if normal_transactions is None:
+            normal_transactions = {}
+
+        transactions = []
+        # Get all transaction that are not Token transfer related tx eg (Approval)
+        for tx_hash, tx_hash_data in normal_transactions.items():
+            if tx_hash in token_transfers:
+                continue
+            
+            function_name = tx_hash_data.get('function_name')
+            txn_name = function_name.split('(',1)[0].strip()
+            if not txn_name and tx_hash_data.get('methodId') == '0x':
+                txn_name = 'Transfer'
+
+            transactions.append({
+                'transaction_name':txn_name,
+                'tx_hash':tx_hash_data.get('tx_hash'),
+                'from':tx_hash_data.get('from'),
+                'to':tx_hash_data.get('to'),
+                'value': int(tx_hash_data.get('value',0))/10**18,
+                'transaction_time':datetime.fromtimestamp(int(tx_hash_data.get('timestamp',1)))
+            })
+
+        for tx_hash_data in token_transfers.values():
+            function_name = tx_hash_data.get('function_name')
+            txn_name = function_name.split('(',1)[0].strip()
+
+            transactions.append({
+                'transaction_name':txn_name,
+                'tx_hash':tx_hash_data.get('tx_hash'),
+                'tokenSymol':tx_hash_data.get('tokenSymbol'),
+                'value': int(tx_hash_data.get('value',0))/ 10 ** int(tx_hash_data.get('tokenDecimal',18)),
+                'from':tx_hash_data.get('from'),
+                'to':tx_hash_data.get('to'),
+                'contract_interacted':tx_hash_data.get('contract_interacted'),
+                'transaction_time':datetime.fromtimestamp(int(tx_hash_data.get('timestamp',1)))
+            })
+        return transactions[:200] # Get only the first N transactions
+
+    async def user_transactions(self,wallet_address:str)->None|dict:
+        """
+            Get all the transaction for the wallet Aside internal transaction
+        """
+        if (not isinstance(wallet_address,str)) or (not wallet_address.startswith('0x')):
+            return 
+        async with aiohttp.ClientSession() as session:
+            token_transactions = await self._token_transactions(
+                wallet_address=wallet_address,
+                session=session)
+            # print(token_transactions)
+            normal_transaction = await self._normal_transactions(
+                wallet_address=wallet_address,
+                session=session
+            )
+            # print(normal_transaction)
+
+            return  self._aggregate_transactions(
+                token_transfers=token_transactions,
+                normal_transactions=normal_transaction
+            )
+            

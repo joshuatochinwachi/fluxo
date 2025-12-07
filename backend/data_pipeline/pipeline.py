@@ -12,7 +12,7 @@ from .ingestion.dune_service import DuneService
 from .ingestion.mantle_api import MantleAPI
 
 from .transformation.transform_defillam_data import transform_protocol_data,transform_yield_protocol
-from .transformation.transform_dune_data import transform_user_portfolio
+from .transformation.transform_dune_data import transform_user_portfolio,transform_user_transaction_data
 from .transformation.transform_mantleApi_data import transform_balance
 
 from .load.store import StoreData
@@ -64,7 +64,7 @@ class Pipeline:
     async def user_portfolio(self,wallet_address:str):
         portfolio_data = await self.dune_service.user_portfolio_analysis(wallet_address)
         transformed_data = transform_user_portfolio(portfolio_data,wallet_address)
-        
+       
         if transformed_data:
             "Determine if to cache user portfolio "
             return transformed_data
@@ -143,7 +143,14 @@ class Pipeline:
         update_data = json.dumps(update_data)
         await self.redis_db.publish(ChannelNames.ONCHAIN.value,update_data)
         print(f"📢 Published transfer event to channel {ChannelNames.ONCHAIN.value}: {update_data}")
-
-    async def test_pipe(self):
-        print('This is a testing pipeline function to simulate')
    
+    async def fetch_transactions(self,wallet_address:str):
+        if not wallet_address.startswith('0x'):
+            return {
+                'transaction':False,
+                'Error':'Invalid Address'
+            }
+        transaction_data = await self.mantle_api.user_transactions(wallet_address)
+        # transformed_data = transform_user_transaction_data(transaction_data)
+        return transaction_data
+

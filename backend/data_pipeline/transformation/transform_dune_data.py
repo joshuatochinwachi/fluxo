@@ -1,5 +1,5 @@
 from typing import List
-from ..schemas.data_schemas import UserPortfolio
+from ..schemas.data_schemas import UserPortfolio,Transaction
 
 def transform_user_portfolio(user_portfolio_data:List,wallet_address)->List[UserPortfolio]|None:
     if not user_portfolio_data:
@@ -19,4 +19,16 @@ def transform_user_portfolio(user_portfolio_data:List,wallet_address)->List[User
         ))
     
     return transformed_portfolio_data
+
+def transform_user_transaction_data(transaction_data:dict):
+    if not transaction_data:
+        return 
+    return [
+        Transaction(
+            transaction_status=tx.get('transaction_status'),
+            transaction_time=tx.get('transaction_time'),
+            transaction=tx.get('transaction')
+        )
+        for tx in transaction_data
+    ]
 

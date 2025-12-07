@@ -1,10 +1,10 @@
 import ast
 import asyncio
 from typing import List
-from core.config import get_redis_connection
+from core.config import get_mongo_connection, get_redis_connection
 from core.pubsub.channel_manager import ChannelNames
 import logging
-from datetime import datetime, UTC
+from datetime import datetime, UTC,timezone
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class onchain_agent:
     def __init__(self):
         self.redis_db = get_redis_connection()
+        self.mongo = get_mongo_connection()
         
         # ADD YOUR LOGIC - Whale thresholds
         self.whale_thresholds = {
@@ -20,7 +21,83 @@ class onchain_agent:
             "USDC": 2000000,
             "default": 100000
         }
-    
+    async def retrieve_transcton_from_db(self,wallet_address:str,limit=None)->list:
+        """
+        Retrieve the transaction from the db
+        Incase if the address is not among address monitored
+        Fetch the address Transaction and not save 
+        """
+        try:
+            store_id = "transactions"
+            transaction_collection = self.mongo['User_Transaction']
+            users_transactions_datas = transaction_collection.find_one({"_id":store_id})
+
+            if not users_transactions_datas:
+                return []
+            
+            user_transactions = users_transactions_datas.get(wallet_address)
+            if not user_transactions:
+                user_transactions = await self.fetch_transaction_and_update_db(wallet_address) 
+                
+            return user_transactions
+        except Exception as e:
+            print(f'There is an error Retrieving Wallet {wallet_address} transactions. Issue {e}')
+        
+
+    async def fetch_transaction_and_update_db(self,query_wallet_address:str=None)->None:
+        """
+            Fetch Users Transaction Data And update the db with the Newest data 
+            query_wallet_addres denotes the address  searched from th frontend
+            There is no need t store the transaction of a random address transaction searc in db
+            We store only the transaction of the address we monitored for easier retrival
+        """
+        from data_pipeline.pipeline import Pipeline
+        pipeline = Pipeline()
+
+        try:
+            if not query_wallet_address:
+                tracked_wallet = await self.redis_db.smembers("tracked_wallets")
+            else:
+                tracked_wallet = [query_wallet_address]
+            
+            if not tracked_wallet:
+                print('There is No Wallet To Fetch Transactions')
+                return 
+            
+            for wallet_address in tracked_wallet:
+                transaction_data = await pipeline.fetch_transactions(wallet_address.decode() if not query_wallet_address else wallet_address )
+                if not query_wallet_address:
+                    asyncio.create_task(self._update_user_transactions(wallet_address.decode() if not query_wallet_address else wallet_address,transaction_data))
+                    # await asyncio.sleep(2)
+                else:
+                    return transaction_data
+        except Exception as e:
+            print(f'There is an Issue fetching User wallet {wallet_address} Transactions Isue:{e}')
+
+    async def _update_user_transactions(self,wallet_address:str,transaction_data:list)->None:
+        print('Updating Db with Transaction Data')
+        """
+        Update user Transaction into db
+        """
+        try:
+            if not transaction_data:
+                return 
+        
+            store_id = "transactions"
+            update_collection = self.mongo['User_Transaction']
+            update_collection.update_one(
+                {"_id":f"{store_id}"},
+                {
+                    "$set":{
+                        f"{wallet_address}":transaction_data,
+                        'updated_at':datetime.now(timezone.utc)
+                    }
+                },
+                upsert=True
+            )
+        except Exception as e:
+            print(f'There is error Updating wallet {wallet_address} Transactions.Issue:{e}')
+        
     async def Receive_onchain_transfer(self):
         """
         Recieves Larger token transfer Event From Onchain 
@@ -93,6 +170,7 @@ class onchain_agent:
             "summary": f"{'🐋 WHALE' if is_whale else '🐟 Regular'}: ${amount_usd:,.0f} {token}",
             "timestamp": datetime.now(UTC).isoformat()
         }
+    
     
     
             

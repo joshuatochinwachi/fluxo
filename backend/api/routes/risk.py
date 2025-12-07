@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.post('/analyze')
 async def analyze_risk(
-    portfolio: PortfolioInput,
+    wallet_address: str,
     market_correlation: Optional[float] = Query(None, ge=0, le=1, description="Market correlation (0-1)")
 ):
     """
@@ -34,9 +34,7 @@ async def analyze_risk(
     """
     try:
         task = risk_task.delay(
-            portfolio.wallet_address, 
-            portfolio.network,
-            market_correlation
+            wallet_address
         )
         
         return APIResponse(
@@ -45,7 +43,7 @@ async def analyze_risk(
             data={
                 "task_id": task.id,
                 "status": "processing",
-                "wallet_address": portfolio.wallet_address,
+                "wallet_address": wallet_address,
                 "market_correlation": market_correlation,
                 "check_status": f"/api/v1/agent/risk/status/{task.id}"
             }

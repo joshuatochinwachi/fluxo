@@ -175,7 +175,7 @@ class AlertManager:
        
         
         logger.info(f"Checked risk alerts for {wallet_address}: {len(triggered_alerts)} triggered")
-        print('Triggers',triggered_alerts)
+       
         return triggered_alerts
     
     def _create_critical_risk_alert(

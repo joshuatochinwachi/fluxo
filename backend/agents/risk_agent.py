@@ -11,12 +11,12 @@ Week 2 Enhancement:
 """
 
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime, UTC
+from datetime import datetime, UTC,timezone
 import logging
 from pydantic import BaseModel
 from enum import Enum
-from services.audit_feed_service import get_audit_service
 
+from core.config import get_mongo_connection
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,8 @@ class RiskAgent:
             "high_volatility": 0.05,
             "min_diversification": 3
         }
+
+        self.mongo = get_mongo_connection()
     
     def analyze_portfolio(
         self, 
@@ -200,7 +202,7 @@ class RiskAgent:
             metrics.overall_score = overall_score
             
             risk_level = self._get_risk_level(overall_score)
-            recommendations = self._generate_recommendations(metrics, assets, market_condition)
+            recommendations = self._generate_recommendations(metrics, portfolio, market_condition)
             
             # Calculate detailed risk factors for deeper insights
             risk_factors = self.calculate_risk_factors(assets, market_correlation or 0.5)
@@ -224,7 +226,7 @@ class RiskAgent:
                         "percentage": asset.percentage_of_portfolio,
                         "value_usd": asset.value_usd
                     }
-                    for asset in sorted(assets, key=lambda a: a.percentage_of_portfolio, reverse=True)[:3]
+                    for asset in sorted(portfolio, key=lambda a: a.percentage_of_portfolio, reverse=True)[:3]
                 ],
                 "timestamp": datetime.now(UTC).isoformat()
             }
@@ -536,3 +538,37 @@ class RiskAgent:
             recommendations.append("✅ Portfolio risk profile is healthy.")
         
         return recommendations
+    
+    def retrieve_user_risk_analysis(self,wallet_address:str)->list:
+        """
+            Retrieve User Risk analysis from the db
+        """
+        store_id = 'Risk'
+        risk_collection = self.mongo['Risk_Analysis']
+
+        if ( users_risk_datas := risk_collection.find_one({"_id":store_id})
+                or {'null':'null'}
+            ):
+                user_risk_analysis = users_risk_datas.get(wallet_address)
+                return user_risk_analysis
+        
+    def update_user_risk_analysis(self,wallet_address:str,risk_analysis:dict):
+        try:
+            store_id = 'Risk'
+            risk_collection = self.mongo['Risk_Analysis']
+            risk_data = [risk_analysis]
+            risk_analysis = risk_collection.update_one(
+                {"_id":f"{store_id}"},
+                {
+                    "$set":{
+                        wallet_address:risk_data,
+                        'updated_at':datetime.now(timezone.utc)
+                    }
+                },
+                upsert=True
+            )
+            return risk_analysis
+        except Exception as e:
+            print(f'There is an error updatiing User transaction. issue: {e}')
+    
+
