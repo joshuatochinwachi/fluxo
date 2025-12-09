@@ -5,9 +5,10 @@ Fetches data from Twitter, Farcaster, and Reddit
 import os
 import asyncio
 import aiohttp
+import logging
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
-import logging
+from core.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,8 @@ class SocialDataFetcher:
     
     def __init__(self):
         # UPDATE: Change to twitterapi.io key
-        self.twitter_api_key = os.getenv("TWITTER_API_KEY", "")  # Changed from TWITTER_BEARER_TOKEN
+        settings = Settings()
+        self.twitter_api_key = settings.twitter_api_key  # Changed from TWITTER_BEARER_TOKEN
         self.reddit_client_id = os.getenv("REDDIT_CLIENT_ID", "")
         self.reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET", "")
     
@@ -38,7 +40,7 @@ class SocialDataFetcher:
                 return self._get_mock_twitter_data(token_symbol, limit)
             
             # Build search query
-            query = f"${token_symbol} OR #{token_symbol}"
+            query = f"${token_symbol} "
             
             # Add common token names
             token_names = {
@@ -48,18 +50,20 @@ class SocialDataFetcher:
                 "mETH": "Mantle Staked ETH"
             }
             
-            if token_symbol in token_names:
-                query += f' OR "{token_names[token_symbol]}"'
+            # if token_symbol in token_names:
+            #     query += f' OR "{token_names[token_symbol]}"'
             
             # Exclude spam
-            query += " -bot -airdrop -giveaway"
+            # query += " -bot -airdrop -giveaway"
             
             # Calculate date range (last 24 hours)
             end_date = datetime.now()
             start_date = end_date - timedelta(days=1)
+
+            # query += f"since:{start_date.strftime("%Y-%m-%d_%H:%M:%S_UTC")} untill:{end_date.strftime("%Y-%m-%d_%H:%M:%S_UTC")}"
             
             # twitterapi.io endpoint
-            url = "https://api.twitterapi.io/twitter/search/advanced"
+            url = "https://api.twitterapi.io/twitter/tweet/advanced_search"
             
             headers = {
                 "X-API-KEY": self.twitter_api_key
@@ -67,16 +71,17 @@ class SocialDataFetcher:
             
             params = {
                 "query": query,
-                "count": min(limit, 100),  # Max 100 per request
-                "section": "top",  # Get top tweets (most engagement)
-                "start_date": start_date.strftime("%Y-%m-%d"),
-                "end_date": end_date.strftime("%Y-%m-%d")
+                "queryType":'Latest'
+                # "count": min(limit, 100),  # Max 100 per request
+                # "section": "top",  # Get top tweets (most engagement)
+                # "start_date": start_date.strftime("%Y-%m-%d"),
+                # "end_date": end_date.strftime("%Y-%m-%d")
             }
             
             logger.info(f"Fetching Twitter data for {token_symbol} (query: {query})")
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params, timeout=30) as response:
+                async with session.get(url, headers=headers, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
                         tweets = self._process_twitter_response_twitterapi(data)
@@ -100,6 +105,7 @@ class SocialDataFetcher:
             return self._get_mock_twitter_data(token_symbol, limit)
     
     def _process_twitter_response_twitterapi(self, data: Dict) -> List[Dict]:
+        print('Using Twitterapi.io Response Processor')
         """
         Process twitterapi.io response format
         
@@ -112,23 +118,27 @@ class SocialDataFetcher:
         tweets = []
         
         # twitterapi.io returns results in "results" key
-        results = data.get("results", [])
+        results = data.get("tweets", [])
+        
+
         
         for tweet in results:
+            if tweet.get('type') != 'tweet':
+                continue
             # Extract user data
-            user_data = tweet.get("user", {})
+            user_data = tweet.get("author", {})
             
             # Normalize to your format
             tweets.append({
                 "platform": "twitter",
                 "text": tweet.get("text") or tweet.get("full_text", ""),
-                "created_at": tweet.get("created_at", ""),
-                "author_id": tweet.get("id_str", ""),
-                "author_name": user_data.get("screen_name", ""),
-                "author_followers": user_data.get("followers_count", 0),
-                "likes": tweet.get("favorite_count", 0),
-                "retweets": tweet.get("retweet_count", 0),
-                "replies": tweet.get("reply_count", 0)
+                "created_at": tweet.get("createdAt", ""),
+                "author_id": user_data.get("id", ""),
+                "author_name": user_data.get("userName", ""),
+                "author_followers": user_data.get("followers", 0),
+                "likes": tweet.get("likeCount", 0),
+                "retweets": tweet.get("retweetCount", 0),
+                "replies": tweet.get("replyCount", 0)
             })
         
         return tweets

@@ -11,7 +11,6 @@
 
 
 from fastapi import APIRouter
-from tasks import automation_task #TODO: create task first
 
 from celery.result import AsyncResult
 from core import celery_app
@@ -20,6 +19,8 @@ router = APIRouter()
 
 @router.get('/automation')
 async def automation_route():
+    
+    from tasks import automation_task
     task = automation_task.delay() # adding the background worker
     # logic
     return {'agent':'automation ','task_id': task.id}

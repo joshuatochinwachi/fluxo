@@ -22,11 +22,12 @@ def macro_task(self, wallet_address: str = None):
         
         # Lazy import to avoid circular dependency
         from agents.macro_agent import MacroAgent
+        from agents.portfolio_agent import portfolio_agent
         from data_pipeline.pipeline import Pipeline
         
         # Initialize agents
         macro_agent = MacroAgent()
-        # alert_manager = AlertManager()
+        portf = portfolio_agent()
         pipeline = Pipeline()
 
         # Run async analysis
@@ -43,8 +44,11 @@ def macro_task(self, wallet_address: str = None):
         import uuid
 
         # Run the agent to fetch yield opportunities (pipeline preferred)
-        user_portfolio_data = loop.run_until_complete(
-            pipeline.user_portfolio(wallet_address)
+        # user_portfolio_data = loop.run_until_complete(
+        #     pipeline.user_portfolio(wallet_address)
+        # )
+        user_portfolio_data = loop.run_until_complete( 
+            portf.retrieve_portfolio_data(wallet_address)
         )
         macro_result = loop.run_until_complete(macro_agent.yield_opportunity(user_portfolio_data))
 

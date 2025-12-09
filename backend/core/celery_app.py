@@ -102,6 +102,7 @@ celery_app.conf.beat_schedule = {
         'args':()
     },
 
+    
     # 'test macro':{
     #     'task':'tasks.agent_tasks.macro_task.macro_task',
     #     'schedule':20,
@@ -112,6 +113,11 @@ celery_app.conf.beat_schedule = {
     #     'task':'tasks.agent_tasks.onchain_task.transaction_task',
     #     'schedule':20,
     # }
+
+    
+    # @celery_app.task(name="periodic_portfolio_monitoring")
+    # def periodic_portfolio_monitoring():  Include this task
+    
 }
 
 celery_app.autodiscover_tasks(['tasks'])

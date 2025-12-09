@@ -40,7 +40,7 @@ def coordinate_alerts(wallet_address: str, analysis_types: List[str] = None):
     
     if "social" in analysis_types:
         # Analyze tokens in the portfolio
-        task_group.append(social_task.s("MNT"))  # TODO: Extract from portfolio
+        task_group.append(social_task.s(wallet_address))  # TODO: Extract from portfolio
     
     if "macro" in analysis_types:
         task_group.append(macro_task.s(wallet_address))
@@ -117,15 +117,7 @@ def merge_alerts(results, wallet_address):
             section_message = (alerts[0].get('title') + ': ' + alerts[0].get('message')) if alerts else f"No alerts from {agent_name}"
 
             key_metrics = {}
-            # items = [
-            #     {
-            #         'title': a.get('title'),
-            #         'severity': a.get('severity'),
-            #         'summary': a.get('message'),
-            #         'details': a.get('details', {})
-            #     }
-            #     for a in alerts[:5]
-            # ]
+            
 
             # Agent-specific metrics
             if agent_name == 'risk':
@@ -154,7 +146,9 @@ def merge_alerts(results, wallet_address):
                 key_metrics = {
                     'overall_score': sa.get('overall_score'),
                     'trend': sa.get('trend') or sa.get('overall_sentiment'),
-                    'volume_change': result.get('volume_change') or sa.get('volume_change')
+                    'volume_change': result.get('volume_change') or sa.get('volume_change'),
+                    'message':sa.get('message')
+
                 }
 
             section = AgentSection(
@@ -190,7 +184,7 @@ def merge_alerts(results, wallet_address):
         wallet_address=wallet_address,
         title=f"Portfolio Analysis Report - {len(analyses_completed)} Analyses Completed",
         overall_severity=max_severity,
-            agent_sections=agent_sections,
+        agent_sections=agent_sections,
         total_alerts_triggered=len(all_alerts),
         risk_score=risk_score,
         risk_level=risk_level,

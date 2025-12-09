@@ -24,7 +24,7 @@ class portfolio_agent:
                 user_portfolio = users_portfolios_datas.get(wallet_address)
                 if not user_portfolio:
                     user_portfolio = await self.analyze_portfolio(wallet_address,True)
-                    
+
                 return user_portfolio  
         except Exception as e:
             print(f'There is error in retrieving wallet {wallet_address} portfolio. isssue {e}')     

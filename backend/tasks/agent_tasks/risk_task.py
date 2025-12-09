@@ -22,8 +22,8 @@ def risk_task(none_track_address: str = None, network: str = "mantle", market_co
         )
     else: 
         risk_analysis = _retrieve_risk_analysis(none_track_address)
-        if risk_analysis:
-            return risk_analysis
+        if risk_analysis and  isinstance(risk_analysis, list):
+            return risk_analysis[0]
         
         tracked_wallet = [none_track_address]
 
@@ -64,7 +64,7 @@ def risk_worker( wallet_address: str, network: str = "mantle", market_correlatio
     
     # Fetch user portolio
     portfolio =  loop.run_until_complete(
-        portf_agent.analyze_portfolio(wallet_address)
+        portf_agent.retrieve_portfolio_data(wallet_address)
     )
 
     # Execute risk analysis

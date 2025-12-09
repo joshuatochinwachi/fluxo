@@ -154,12 +154,20 @@ async def main():
 # from data_pipeline.ingestion.mantle_api import MantleAPI
 # mantle = MantleAPI()
 
+# from datetime import datetime, timedelta, timezone
 
-from agents.portfolio_agent import portfolio_agent
+# end_date = datetime.now()
+# start_date = end_date - timedelta(days=1)
 
-pipe = portfolio_agent()
+# formatted_start = start_date.strftime("%Y-%m-%d_%H:%M:%S_UTC")
+# formatted_end = end_date.strftime("%Y-%m-%d_%H:%M:%S_UTC")
 
-async def main():
-    data  = await pipe.analyze_portfolio('0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64')
-    print(data)
-asyncio.run(main())
+# print("Start:", formatted_start)
+# print("End:", formatted_end)
+# print(f"Start Date: {start_date}, End Date: {end_date}")
+
+
+
+from tasks.agent_tasks.social_task import social_task
+
+social_task('0x5C30940A4544cA845272FE97c4A27F2ED2CD7B64')

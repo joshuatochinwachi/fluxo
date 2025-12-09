@@ -91,6 +91,19 @@ class AlertManager:
                 comparison="gte",
                 cooldown_minutes=120  # 2 hours
             ),
+            # Social alerts
+            AlertType.SENTIMENT_SHIFT: AlertTrigger(
+                alert_type=AlertType.SENTIMENT_SHIFT,
+                threshold=0.6,  # absolute sentiment magnitude (0.0-1.0)
+                comparison="gte",
+                cooldown_minutes=60
+            ),
+            AlertType.NARRATIVE_TRENDING: AlertTrigger(
+                alert_type=AlertType.NARRATIVE_TRENDING,
+                threshold=50.0,  # trending_score
+                comparison="gte",
+                cooldown_minutes=120
+            ),
         }
     
     async def check_risk_alerts(
@@ -218,6 +231,110 @@ class AlertManager:
         
         self._update_cooldown(alert_key)
         return alert
+
+    def _create_sentiment_shift_alert(
+        self,
+        token_symbol: str,
+        score: float,
+        delta_score: float,
+        volume_change: float,
+        severity: AlertSeverity = AlertSeverity.WARNING
+    ) -> Optional[Alert]:
+        """Create a social sentiment-shift alert"""
+        alert_key = f"social:sentiment:{token_symbol}"
+        if not self._check_cooldown(alert_key, 60):
+            return None
+
+        alert = Alert(
+            alert_id=str(uuid.uuid4()),
+            alert_type=AlertType.SENTIMENT_SHIFT,
+            severity=severity,
+            title="📣 Social Sentiment Shift Detected",
+            message=(
+                f"{token_symbol} social sentiment moved (score={score:.2f}, delta={delta_score:.2f}, vol_change={volume_change:.2f})"
+            ),
+            wallet_address=None,
+            current_value=score,
+            threshold=0.6,
+            details={
+                "delta_score": delta_score,
+                "volume_change": volume_change,
+            },
+            triggered_by="social_agent"
+        )
+
+        self._update_cooldown(alert_key)
+        return alert
+
+    def _create_narrative_trending_alert(
+        self,
+        token_symbol: str,
+        narrative: str,
+        mentions: int,
+        trending_score: float,
+        severity: AlertSeverity = AlertSeverity.WARNING
+    ) -> Optional[Alert]:
+        """Create a narrative trending alert"""
+        alert_key = f"social:narrative:{token_symbol}:{narrative}"
+        if not self._check_cooldown(alert_key, 120):
+            return None
+
+        alert = Alert(
+            alert_id=str(uuid.uuid4()),
+            alert_type=AlertType.NARRATIVE_TRENDING,
+            severity=severity,
+            title=f"🔥 Trending Narrative: {narrative}",
+            message=(
+                f"'{narrative}' mentioned {mentions} times (score={trending_score})"
+            ),
+            wallet_address=None,
+            current_value=trending_score,
+            threshold=50.0,
+            details={"mentions": mentions},
+            triggered_by="social_agent"
+        )
+
+        self._update_cooldown(alert_key)
+        return alert
+
+    # --- Simple sentiment baseline storage helpers ---
+    def get_last_sentiment(self, token_symbol: str):
+        """Retrieve last stored sentiment score for a token (sync wrapper)."""
+        key = "SOCIAL_SENTIMENT"
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(
+                self.redis_con.hget(key, token_symbol),
+                loop
+            )
+            res = future.result(timeout=5)
+        except RuntimeError:
+            # no running loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            res = loop.run_until_complete(self.redis_con.hget(key, token_symbol))
+
+        if res is None:
+            return None
+        try:
+            return float(res)
+        except Exception:
+            return None
+
+    def set_last_sentiment(self, token_symbol: str, score: float):
+        """Store last sentiment score for a token (sync wrapper)."""
+        key = "SOCIAL_SENTIMENT"
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(
+                self.redis_con.hset(key, token_symbol, str(score)),
+                loop
+            )
+            future.result(timeout=5)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(self.redis_con.hset(key, token_symbol, str(score)))
     
     def _create_high_risk_alert(
         self,

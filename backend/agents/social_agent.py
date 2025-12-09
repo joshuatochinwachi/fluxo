@@ -4,12 +4,14 @@ Enhanced with real data fetching capabilities
 """
 
 import logging
+import json
 from typing import List, Dict, Optional
 from datetime import datetime, UTC
 from enum import Enum
 
 from services.social_data_fetcher import SocialDataFetcher
 from services.sentiment_analyzer import SentimentAnalyzer
+from core.config import get_redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,16 @@ class SocialAgent:
         self.data_fetcher = SocialDataFetcher()
         self.sentiment_analyzer = SentimentAnalyzer()
         
+        # Redis cache connection
+        try:
+            self.redis_conn = get_redis_connection()
+        except Exception as e:
+            logger.warning(f"Failed to connect to Redis: {e}. Caching disabled.")
+            self.redis_conn = None
+        
+        self.sentiment_cache_key = "SOCIAL_SENTIMENT_CACHE"
+        self.sentiment_cache_ttl = 3600  # 1 hour cache TTL
+        
         # Narrative Keywords
         self.narrative_keywords = [
             "the next solana", "undervalued gem", "new meta", "paradigm shift",
@@ -63,7 +75,7 @@ class SocialAgent:
         platforms: Optional[List[str]] = None
     ) -> Dict:
         """
-        Analyze sentiment for a token across social platforms
+        Analyze sentiment for a token across social platforms with Redis caching
         
         Args:
             token_symbol: Token to analyze (e.g., "MNT", "ETH")
@@ -75,9 +87,20 @@ class SocialAgent:
         try:
             logger.info(f"Analyzing sentiment for {token_symbol}")
             
-            # Fetch data from all platforms
-            all_data = await self.data_fetcher.fetch_all_platforms(token_symbol)
+            # Check Redis cache first
+            if self.redis_conn:
+                try:
+                    cached_result = await self.redis_conn.hget(self.sentiment_cache_key, token_symbol)
+                    if cached_result:
+                        print(f"Cache hit for {token_symbol}. Using cached sentiment.")
+                        return json.loads(cached_result)
+                except Exception as e:
+                    print(f"Redis cache lookup failed: {e}. Proceeding with fresh analysis.")
             
+            # Cache miss or Redis unavailable - fetch fresh data
+            logger.info(f"No Cache for {token_symbol}. Fetching fresh Twitter data...")
+            twitter_data = await self.data_fetcher.fetch_twitter_data(token_symbol)
+            all_data = {"twitter": twitter_data}
             # Analyze sentiment
             sentiment_results = self.sentiment_analyzer.analyze_by_platform(all_data)
             
@@ -89,6 +112,16 @@ class SocialAgent:
             
             # Generate summary
             sentiment_results["summary"] = self._generate_summary(sentiment_results)
+            
+            # Store in Redis cache with TTL
+            if self.redis_conn:
+                try:
+                    cache_data = json.dumps(sentiment_results)
+                    await self.redis_conn.hset(self.sentiment_cache_key, token_symbol, cache_data)
+                    await self.redis_conn.expire(self.sentiment_cache_key, self.sentiment_cache_ttl)
+                    print(f"Cached sentiment for {token_symbol} ({self.sentiment_cache_ttl}s TTL)")
+                except Exception as e:
+                    print(f"Failed to cache sentiment for {token_symbol}: {e}")
             
             return sentiment_results
             
@@ -107,7 +140,9 @@ class SocialAgent:
             List of trending narratives
         """
         # Fetch social data
-        all_data = await self.data_fetcher.fetch_all_platforms(token_symbol)
+        # TODO Add and allow all platforms
+        twitter_data = await self.data_fetcher.fetch_twitter_data(token_symbol)
+        all_data = {"twitter": twitter_data}
         
         # Extract narratives from posts
         narratives = []

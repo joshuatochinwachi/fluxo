@@ -1,8 +1,10 @@
 
 from __future__ import annotations
 import os
+import time
 import requests
 from typing import Dict, Optional
+from core.config import Settings
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1")
@@ -19,6 +21,7 @@ class LLMClient:
     def __init__(self, openai_api_key: Optional[str] = None, anthropic_api_key: Optional[str] = None):
         self.openai_api_key = openai_api_key or OPENAI_API_KEY
         self.anthropic_api_key = anthropic_api_key or ANTHROPIC_API_KEY
+        self.settings = Settings()
 
     def call_openai(self, prompt: str, model: str = "gpt-4o-mini", max_tokens: int = 512) -> Dict:
         """Call OpenAI Chat Completions endpoint (simple prototype).
@@ -78,7 +81,7 @@ class LLMClient:
     def Call_gemini(self, prompt: str, model: str = "gemini-2.5-flash"):
         try:
             headers = {
-                "x-goog-api-key": "AIzaSyCUNkJ8NVf11vI6k1cSH6IwOpCRu_u_8QM",
+                "x-goog-api-key": self.settings.gemini_api_key,
                 "Content-Type": "application/json"
             }
 
@@ -94,14 +97,15 @@ class LLMClient:
             }
 
             GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-
+            time.sleep(3)
             response = requests.post(url=GEMINI_URL, json=payload, headers=headers)
             if response.status_code == 200:
                 result = response.json()
                 text = result['candidates'][0]['content']['parts'][0]['text']
+                text = text.split('json')[1].strip('```')
                 return text
             else:
-                print("Error:", response.status_code, response.text)
+                print("Error In Gemini Ai:", response.status_code)
                 return None
 
         except Exception as e:
