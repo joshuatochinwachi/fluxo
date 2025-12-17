@@ -5,7 +5,7 @@ from typing import List,Optional,AsyncIterator
 from aiohttp import ClientSession as session
 from pydantic import BaseModel
 
-from web3 import Web3,AsyncHTTPProvider,AsyncWeb3,WebSocketProvider
+from web3 import Web3,AsyncHTTPProvider,AsyncWeb3,WebsocketProvider
 from eth_utils import to_checksum_address
 from eth_abi import decode
 from eth_abi.exceptions import InsufficientDataBytes
@@ -76,7 +76,7 @@ class MantleAPI:
                 block_number=log.get("blockNumber")
             )
         """
-        async with AsyncWeb3(WebSocketProvider(MANTLE_WSS_URL)) as w3:
+        async with AsyncWeb3(WebsocketProvider(MANTLE_WSS_URL)) as w3:
             self.w3 = w3
 
             params = {
