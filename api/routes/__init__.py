@@ -13,6 +13,7 @@ from .social import router as social_router
 from .alerts import router as alerts_router
 from .system import router as system_router
 from .digest import router as digest_router
+from .whale import router as whale_router
 
 
 __all__ = [
@@ -30,6 +31,6 @@ __all__ = [
     'social_router',
     'alerts_router',
     'system_router',
-    'digest_router'
-    
+    'digest_router',
+    'whale_router'
 ]

@@ -13,7 +13,8 @@ from .routes import (
     social_router,
     alerts_router,
     system_router,
-    digest_router
+    digest_router,
+    whale_router
 )
 
 
@@ -32,5 +33,6 @@ __all__ = [
     'social_router',
     'alerts_router',
     'system_router',
-    'digest_router'
+    'digest_router',
+    'whale_router'
 ]

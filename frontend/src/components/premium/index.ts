@@ -1,0 +1,1 @@
+export { PremiumInsights } from './PremiumInsights';

@@ -1,0 +1,245 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLUXO DESIGN SYSTEM - Private Intelligence Interface
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Primary Brand Colors */
+  --fluxo-deep-purple: 280 68% 33%;      /* #5B1A8B - Deep Intelligence Purple */
+  --fluxo-royal-violet: 276 75% 40%;      /* #6A1BB1 - Royal Violet */
+  
+  /* Supporting Purples */
+  --fluxo-mid-violet: 276 58% 50%;        /* #8E3CC8 - Mid Violet */
+  --fluxo-soft-lavender: 276 100% 75%;    /* #C77DFF - Soft Lavender */
+  --fluxo-signal-lilac: 276 100% 85%;     /* #E3A8FF - Signal Lilac (accent) */
+  
+  /* Neutrals */
+  --fluxo-white: 0 0% 100%;               /* #FFFFFF */
+  --fluxo-soft-gray: 270 20% 96%;         /* #F4F1F7 */
+  --fluxo-charcoal: 255 15% 12%;          /* #1E1B24 - Deep Charcoal */
+  
+  /* Semantic Mappings */
+  --background: var(--fluxo-white);
+  --foreground: var(--fluxo-charcoal);
+  --card: var(--fluxo-white);
+  --card-foreground: var(--fluxo-charcoal);
+  --popover: var(--fluxo-white);
+  --popover-foreground: var(--fluxo-charcoal);
+  --primary: var(--fluxo-deep-purple);
+  --primary-foreground: 0 0% 100%;
+  --secondary: var(--fluxo-soft-gray);
+  --secondary-foreground: var(--fluxo-charcoal);
+  --muted: var(--fluxo-soft-gray);
+  --muted-foreground: 255 10% 45%;
+  --accent: var(--fluxo-mid-violet);
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62.8% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 270 15% 88%;
+  --input: 270 15% 88%;
+  --ring: var(--fluxo-royal-violet);
+  --radius: 0.5rem;
+}
+
+/* Dark mode - Intelligence Interface */
+.dark {
+  --background: var(--fluxo-charcoal);
+  --foreground: 0 0% 95%;
+  --card: 255 15% 15%;
+  --card-foreground: 0 0% 95%;
+  --popover: 255 15% 15%;
+  --popover-foreground: 0 0% 95%;
+  --primary: var(--fluxo-royal-violet);
+  --primary-foreground: 0 0% 100%;
+  --secondary: 255 15% 20%;
+  --secondary-foreground: 0 0% 95%;
+  --muted: 255 15% 20%;
+  --muted-foreground: 270 10% 60%;
+  --accent: var(--fluxo-mid-violet);
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62.8% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 255 15% 22%;
+  --input: 255 15% 22%;
+  --ring: var(--fluxo-soft-lavender);
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  /* Fluxo Brand Colors */
+  --color-fluxo-deep: hsl(var(--fluxo-deep-purple));
+  --color-fluxo-royal: hsl(var(--fluxo-royal-violet));
+  --color-fluxo-mid: hsl(var(--fluxo-mid-violet));
+  --color-fluxo-soft: hsl(var(--fluxo-soft-lavender));
+  --color-fluxo-signal: hsl(var(--fluxo-signal-lilac));
+  
+  /* Typography */
+  --font-sans: 'Inter', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-heading: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  
+  /* Radius - Sharp, not bubbly */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings use Space Grotesk */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Custom Scrollbar - Intelligence Theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--fluxo-mid-violet) / 0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--fluxo-mid-violet) / 0.6);
+}
+
+/* Animations - Subtle, not playful */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Fluxo Brand Gradients */
+.gradient-fluxo {
+  background: linear-gradient(135deg, hsl(var(--fluxo-deep-purple)) 0%, hsl(var(--fluxo-royal-violet)) 100%);
+}
+
+.gradient-fluxo-soft {
+  background: linear-gradient(135deg, hsl(var(--fluxo-royal-violet)) 0%, hsl(var(--fluxo-mid-violet)) 100%);
+}
+
+.gradient-fluxo-text {
+  background: linear-gradient(135deg, hsl(var(--fluxo-mid-violet)) 0%, hsl(var(--fluxo-soft-lavender)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card hover glow effect */
+.card-glow {
+  transition: box-shadow 0.2s ease;
+}
+
+.card-glow:hover {
+  box-shadow: 0 0 20px hsl(var(--fluxo-mid-violet) / 0.15);
+}
+
+/* Button command style */
+.btn-command {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-command::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, hsl(var(--fluxo-mid-violet) / 0.2) 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.btn-command:hover::after {
+  opacity: 1;
+}
+
+/* Intelligence grid pattern */
+.pattern-grid {
+  background-image: 
+    linear-gradient(hsl(var(--fluxo-mid-violet) / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--fluxo-mid-violet) / 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Selection colors */
+::selection {
+  background: hsl(var(--fluxo-royal-violet) / 0.3);
+  color: inherit;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid hsl(var(--fluxo-mid-violet));
+  outline-offset: 2px;
+}
