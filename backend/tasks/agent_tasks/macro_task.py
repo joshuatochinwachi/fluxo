@@ -6,17 +6,19 @@ from core import celery_app
 import asyncio
 # REMOVE THIS LINE: from services.alert_manager import AlertManager
 
-@celery_app.task(bind=True, name="macro_analysis")
+@celery_app.task(
+        bind=True,
+        name="tasks.agent_tasks.macro_task.macro_task")
 def macro_task(self, wallet_address: str = None):
     """
     Macro market analysis with Mantle protocol correlation
     """
     try:
    
-        # self.update_state(
-        #     state='PROCESSING',
-        #     meta={'status': 'Fetching macro indicators...', 'progress': 0}
-        # )
+        self.update_state(
+            state='PROCESSING',
+            meta={'status': 'Fetching macro indicators...', 'progress': 0}
+        )
         
         print(f'Running macro analysis On: {wallet_address or "all"}')
         

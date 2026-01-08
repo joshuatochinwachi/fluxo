@@ -15,7 +15,6 @@ scheduler:
 
 @shared_task
 def test():
-    print('testing...')
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 

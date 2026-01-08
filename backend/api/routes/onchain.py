@@ -86,18 +86,21 @@ async def user_subscribed_tokens_update():
 
 @router.get('/transactions')
 async def user_transactions(wallet_address:str):
-    from agents.onchain_agent import onchain_agent
-    onchain = onchain_agent()
-    if not wallet_address:
-        return {}
+    from tasks.agent_tasks.onchain_task import fetch_transaction
+    # from agents.onchain_agent import onchain_agent
+    # onchain = onchain_agent()
+    # if not wallet_address:
+    #     return {}
     
-    task = (wallet_address)
+    # task = (wallet_address)
+    task = fetch_transaction.delay(wallet_address)
     return APIResponse(
         success=True,
         message=f'Fetch Transactions For {wallet_address}',
         data={
-            'task_id':None,
-            'result': await onchain.retrieve_transcton_from_db(wallet_address)
+            'task_id':task.id,
+            # 'result': await onchain.retrieve_transcton_from_db(wallet_address)
+            'check_status':f"/onchain/status/{task.id}"
         }
     )
 

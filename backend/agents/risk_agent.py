@@ -144,11 +144,11 @@ class RiskAgent:
         Returns:
             Risk analysis dictionary
         """
-
-        
+        if not portfolio:
+            return {}
         try:
             # Extract wallet address
-            wallet_address = portfolio[0].user_address
+            wallet_address = portfolio[0].get('user_address')
             
             # Mock assets for now
             assets = [
@@ -205,7 +205,7 @@ class RiskAgent:
             recommendations = self._generate_recommendations(metrics, portfolio, market_condition)
             
             # Calculate detailed risk factors for deeper insights
-            risk_factors = self.calculate_risk_factors(assets, market_correlation or 0.5)
+            risk_factors = self.calculate_risk_factors(portfolio, market_correlation or 0.5)
             
             return {
                 "wallet_address": wallet_address,
@@ -221,12 +221,12 @@ class RiskAgent:
                 "recommendations": recommendations,
                 "top_holdings": [
                     {
-                        "token": asset.token_symbol,
-                        "token_address": asset.token_address,
-                        "percentage": asset.percentage_of_portfolio,
-                        "value_usd": asset.value_usd
+                        "token": asset.get('token_symbol'),
+                        "token_address": asset.get('token_address'),
+                        "percentage": asset.get('percentage_of_portfolio'),
+                        "value_usd": asset.get('value_usd')
                     }
-                    for asset in sorted(portfolio, key=lambda a: a.percentage_of_portfolio, reverse=True)[:3]
+                    for asset in sorted(portfolio, key=lambda a: a.get('percentage_of_portfolio'), reverse=True)[:3]
                 ],
                 "timestamp": datetime.now(UTC).isoformat()
             }
@@ -275,7 +275,7 @@ class RiskAgent:
         if not assets:
             return 0.0
         
-        hhi = sum((asset.percentage_of_portfolio / 100) ** 2 for asset in assets)
+        hhi = sum((asset.get('percentage_of_portfolio') / 100) ** 2 for asset in assets)
         base_score = hhi * 100
         
         num_assets = len(assets)
@@ -309,12 +309,12 @@ class RiskAgent:
                 tier = self.liquidity_tiers[protocol.lower()]
                 asset_liquidity_score = tier_scores.get(tier, 75)
             else:
-                if asset.value_usd:
-                    asset_liquidity_score = 40 if asset.value_usd > self.thresholds["low_liquidity_usd"] else 70
+                if asset.get('value_usd'):
+                    asset_liquidity_score = 40 if asset.get('value_usd') > self.thresholds["low_liquidity_usd"] else 70
                 else:
                     asset_liquidity_score = 70
 
-            weight = asset.percentage_of_portfolio / 100
+            weight = asset.get('percentage_of_portfolio') / 100
             weighted_liquidity += asset_liquidity_score * weight
         
         return round(weighted_liquidity, 2)
@@ -331,8 +331,8 @@ class RiskAgent:
         
         weighted_vol = 0
         for asset in assets:
-            vol_score = volatility_profiles.get(asset.token_symbol.upper(), 70)
-            weight = asset.percentage_of_portfolio / 100
+            vol_score = volatility_profiles.get(asset.get('token_symbol').upper(), 70)
+            weight = asset.get('percentage_of_portfolio') / 100
             weighted_vol += vol_score * weight
         
         return round(weighted_vol, 2)
@@ -351,18 +351,19 @@ class RiskAgent:
             if protocol and protocol.lower() in self.protocol_tiers:
                 tier = self.protocol_tiers[protocol.lower()]
                 asset_risk = self.protocol_risk_scores[tier]
-            elif asset.token_symbol.upper() in safe_tokens:
+            elif asset.get('token_symbol').upper() in safe_tokens:
                 asset_risk = 10
             else:
                 asset_risk = 80
             
-            weight = asset.percentage_of_portfolio / 100
+            weight = asset.get('percentage_of_portfolio') / 100
             weighted_contract_risk += asset_risk * weight
         
         return round(weighted_contract_risk, 2)
     
     def _calculate_correlation_risk(self, market_correlation: float) -> Tuple[float, str]:
         """Calculate correlation risk"""
+        # Use configured correlation thresholds (healthy/neutral/stressed)
         if market_correlation < self.correlation_thresholds["healthy"]:
             return 15.0, "healthy_rotation"
         elif market_correlation < self.correlation_thresholds["neutral"]:
@@ -430,17 +431,17 @@ class RiskAgent:
         
         # 8. Stablecoin Allocation (0-100, higher is safer)
         stablecoin_weight = sum(
-            asset.percentage_of_portfolio
+            asset.get('percentage_of_portfolio')
             for asset in assets
-            if asset.token_symbol.upper() in ["USDC", "USDT", "DAI", "BUSD", "USDP"]
+            if asset.get('token_symbol').upper() in ["USDC", "USDT", "DAI", "BUSD", "USDP"]
         )
         factors["stablecoin_allocation"] = stablecoin_weight  # 0-100 as percentage
         
         # 9. Protocol Distribution Risk (concentration across protocols)
         protocol_weights = {}
         for asset in assets:
-            protocol = asset.protocol or "unallocated"
-            protocol_weights[protocol] = protocol_weights.get(protocol, 0) + asset.percentage_of_portfolio
+            protocol = asset.get('protocol') or "unallocated"
+            protocol_weights[protocol] = protocol_weights.get(protocol, 0) + asset.get('percentage_of_portfolio')
         
         protocol_hhi = sum((w / 100) ** 2 for w in protocol_weights.values())
         factors["protocol_concentration"] = round(protocol_hhi * 100, 2)
@@ -450,7 +451,7 @@ class RiskAgent:
         quality_score = 0
         for asset in assets:
             # Score each asset (0-100, higher = better)
-            token = asset.token_symbol.upper()
+            token = asset.get('token_symbol').upper()
             if token in ["USDC", "USDT", "DAI"]:
                 asset_quality = 95  # Stablecoins
             elif token in ["ETH", "WETH", "BTC", "mETH"]:
@@ -460,7 +461,7 @@ class RiskAgent:
             else:
                 asset_quality = 50  # Unknown/emerging
             
-            weight = asset.percentage_of_portfolio / 100
+            weight = asset.get('percentage_of_portfolio') / 100
             quality_score += asset_quality * weight
         
         factors["asset_quality"] = round(quality_score, 2)

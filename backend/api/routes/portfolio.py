@@ -21,23 +21,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ============= FREEMAN'S ORIGINAL ENDPOINTS (KEEP THESE) =============
-
 @router.get('/portfolio')
 async def portfolio(address: str)->APIResponse:
-    portf = portfolio_agent()
-    data =   await portf.retrieve_portfolio_data(address)
+    from tasks.agent_tasks.portfolio_task import fetch_portfolio
+    # portf = portfolio_agent()
+    # task =   await portf.retrieve_portfolio_data(address)
+    task = fetch_portfolio.delay(address)
     # return {'data':'result'}
     return APIResponse(
         success=True,
         message=f'User Portfolio Data',
         data={
-            'task_id':None,
-            'result': data
+            'task_id':task.id,
+            'check_status':f"/api/v1/agent/portfolio/status/{task.id}"
         }
     )
 
-@router.get('/status/{task_id}')
+
+@router.get('/status/portfolio/{task_id}')
 async def get_portfolio_result(task_id: str):
     task_result = AsyncResult(task_id, app=celery_app)
     

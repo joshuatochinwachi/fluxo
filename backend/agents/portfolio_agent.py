@@ -23,7 +23,8 @@ class portfolio_agent:
             ):
                 user_portfolio = users_portfolios_datas.get(wallet_address)
                 if not user_portfolio:
-                    user_portfolio = await self.analyze_portfolio(wallet_address,True)
+                    user_portfolio = await self.analyze_portfolio(wallet_address)
+
 
                 return user_portfolio  
         except Exception as e:

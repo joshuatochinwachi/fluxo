@@ -8,6 +8,7 @@ import asyncio
 
 @celery_app.task
 def risk_task(none_track_address: str = None, network: str = "mantle", market_correlation: float = None):
+    print( f'Initiating risk task for address: {none_track_address}' )
     """
        Retrieve User  risk anaysis 
        none_track_address means address that is used to call fron the external source rather than background task
@@ -20,6 +21,7 @@ def risk_task(none_track_address: str = None, network: str = "mantle", market_co
         tracked_wallet = loop.run_until_complete(
             redis_con.smembers("tracked_wallets")
         )
+        print(f'Tracked wallets found: {tracked_wallet}')
     else: 
         risk_analysis = _retrieve_risk_analysis(none_track_address)
         if risk_analysis and  isinstance(risk_analysis, list):

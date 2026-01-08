@@ -2,11 +2,14 @@
 Periodic Tasks for Continuous Monitoring
 """
 from core import celery_app
+from celery import shared_task
 import asyncio
 import json
 
 
-@celery_app.task(name="periodic_portfolio_monitoring")
+@celery_app.task(
+    name="tasks.periodic_tasks.periodic_portfolio_monitoring"
+)
 def periodic_portfolio_monitoring():
     """
     Periodic task to monitor all tracked portfolios

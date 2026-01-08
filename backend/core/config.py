@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Final
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-import motor.motor_asyncio
 from pymongo import MongoClient
 from redis.asyncio import Redis
 
@@ -61,7 +60,11 @@ class Settings(BaseSettings):
     coindesk_news:str
     etherscan:str
     twitter_api_key:str
-
+    mantle_rpc:str
+    contract_address:str
+    private_key:str
+    backend_wallet_address:str
+    contract_abi:list
     model_config = SettingsConfigDict(
         env_file=ENV_PATH,
         env_file_encoding='utf-8',
@@ -105,13 +108,13 @@ class redisConnect:
         settings = Settings()
 
         self.db_connect = Redis(
-            host='localhost',
-            port=6379,
-            db=1
-            # host=settings.redis_host,
-            # port=settings.redis_port,
-            # password=settings.redis_password,
-            # max_connections=max_connections
+            # host='localhost', #'localhost',
+            # port=6379,
+            # db=1
+            host=settings.redis_host,
+            port=settings.redis_port,
+            password=settings.redis_password,
+            max_connections=7
         )
      
     def get_connection(self, db=None):

@@ -68,6 +68,3 @@ def main():
         except LLMError as e2:
             print("Both LLM calls failed:", e2)
 
-
-if __name__ == "__main__":
-    main()

@@ -44,7 +44,20 @@ def transaction_task()->None:
         onchain_agent.fetch_transaction_and_update_db()
     )
 
+@celery_app.task
+def fetch_transaction(wallet_address)->list:
+    """
+    Fetch User Transaction from db
+    """
+    from agents.onchain_agent import onchain_agent
+    agent =  onchain_agent()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
+    transaction = loop.run_until_complete(
+        agent.retrieve_transcton_from_db(wallet_address)
+    )
+    return transaction
 
 
 

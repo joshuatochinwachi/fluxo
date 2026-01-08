@@ -8,4 +8,7 @@ which update the user transaction data to the db for easier lookup
 """"
 
 Mantle yield  run periodic taks. from pipeline_task then save to db
+
+
+Risk task shoulld be periodic task 
 """

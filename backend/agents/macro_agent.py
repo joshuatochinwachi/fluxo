@@ -8,7 +8,6 @@ from core.config import get_mongo_connection,get_redis_connection
 from core.pubsub.channel_manager import ChannelNames
 from data_pipeline.schemas.data_schemas import UserPortfolio
 from typing import Dict, Any, List, Optional
-from dataclasses import asdict
 import json
 import logging
 from datetime import datetime, UTC
@@ -158,7 +157,7 @@ class MacroAgent:
         # Normalize portfolio tokens
         portfolio_tokens = set()
         if portfolio_data:
-            for asset in [asdict(data) for data in portfolio_data]:
+            for asset in [data for data in portfolio_data]:
                 symbol = (asset.get("symbol") or "").lower()
                 if symbol:
                     portfolio_tokens.add(symbol)
@@ -179,7 +178,7 @@ class MacroAgent:
             
             existing_allocation = 0.0
             if matched and portfolio_data:
-                for asset in [asdict(data) for data in portfolio_data]:
+                for asset in [data for data in portfolio_data]:
                     if (asset.get("symbol") or "").lower() == symbol:
                         existing_allocation = float(asset.get("percentage_of_portfolio") or 0)
                         break

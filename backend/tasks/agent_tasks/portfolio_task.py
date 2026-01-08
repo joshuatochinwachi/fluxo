@@ -22,3 +22,16 @@ def portfolio_task()->None:
     loop.run_until_complete(
         portfolio.analyze_portfolio()
     )
+
+@celery_app.task
+def fetch_portfolio(wallet_address:str)->list:
+    from agents.portfolio_agent import portfolio_agent
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    portfolio = portfolio_agent()
+    portfolio_data = loop.run_until_complete(
+        portfolio.retrieve_portfolio_data(wallet_address)
+    )
+    return portfolio_data

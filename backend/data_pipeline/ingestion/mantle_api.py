@@ -5,7 +5,7 @@ from typing import List,Optional,AsyncIterator
 from aiohttp import ClientSession as session
 from pydantic import BaseModel
 
-from web3 import Web3,AsyncHTTPProvider,AsyncWeb3,WebsocketProvider
+from web3 import Web3,AsyncHTTPProvider,AsyncWeb3,WebSocketProvider
 from eth_utils import to_checksum_address
 from eth_abi import decode
 from eth_abi.exceptions import InsufficientDataBytes
@@ -76,7 +76,7 @@ class MantleAPI:
                 block_number=log.get("blockNumber")
             )
         """
-        async with AsyncWeb3(WebsocketProvider(MANTLE_WSS_URL)) as w3:
+        async with AsyncWeb3(WebSocketProvider(MANTLE_WSS_URL)) as w3:
             self.w3 = w3
 
             params = {
@@ -192,6 +192,7 @@ class MantleAPI:
             "module":"account"
         }
 
+
         async with session.get(url=url, params=params) as response:
             if response.status != 200:
                 return 
@@ -244,19 +245,32 @@ class MantleAPI:
             if tx_hash in token_transfers:
                 continue
             
+            normal_tx = {}
             function_name = tx_hash_data.get('function_name')
             txn_name = function_name.split('(',1)[0].strip()
-            if not txn_name and tx_hash_data.get('methodId') == '0x':
-                txn_name = 'Transfer'
 
-            transactions.append({
-                'transaction_name':txn_name,
-                'tx_hash':tx_hash_data.get('tx_hash'),
-                'from':tx_hash_data.get('from'),
-                'to':tx_hash_data.get('to'),
-                'value': int(tx_hash_data.get('value',0))/10**18,
-                'transaction_time':datetime.fromtimestamp(int(tx_hash_data.get('timestamp',1)))
-            })
+            normal_tx['transaction_name'] = txn_name
+            normal_tx['tx_hash'] = tx_hash_data.get('tx_hash')
+            normal_tx['from']= tx_hash_data.get('from')
+            normal_tx['to'] =  tx_hash_data.get('to')
+            normal_tx['value'] =  int(tx_hash_data.get('value',0))/10**18
+            normal_tx['transaction_time'] = datetime.fromtimestamp(int(tx_hash_data.get('timestamp',1)))
+            
+            
+            if not txn_name and tx_hash_data.get('methodId') == '0x':
+                normal_tx['transaction_name'] = 'Transfer'
+                normal_tx['tokenSymbol'] = 'MNT'
+
+
+            transactions.append(normal_tx)
+            # transactions.append({
+            #     'transaction_name':txn_name,
+            #     'tx_hash':tx_hash_data.get('tx_hash'),
+            #     'from':tx_hash_data.get('from'),
+            #     'to':tx_hash_data.get('to'),
+            #     'value': int(tx_hash_data.get('value',0))/10**18,
+            #     'transaction_time':datetime.fromtimestamp(int(tx_hash_data.get('timestamp',1)))
+            # })
 
         for tx_hash_data in token_transfers.values():
             function_name = tx_hash_data.get('function_name')
@@ -265,7 +279,7 @@ class MantleAPI:
             transactions.append({
                 'transaction_name':txn_name,
                 'tx_hash':tx_hash_data.get('tx_hash'),
-                'tokenSymol':tx_hash_data.get('tokenSymbol'),
+                'tokenSymbol':tx_hash_data.get('tokenSymbol'),
                 'value': int(tx_hash_data.get('value',0))/ 10 ** int(tx_hash_data.get('tokenDecimal',18)),
                 'from':tx_hash_data.get('from'),
                 'to':tx_hash_data.get('to'),

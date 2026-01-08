@@ -129,7 +129,10 @@ def daily_news_digest(date: Optional[str] = None):
 
 
 def _fetch_news_sources() -> List[Dict[str, Any]]:
-	"""Placeholder: fetch news from multiple APIs and normalize to list of dicts."""
+	"""
+	Placeholder: fetch news from multiple APIs and normalize to list of dicts.
+	"""
+	
 	# TODO: replace with real fetchers (CoinGecko/news API, Flipside feeds, etc.)
 	external_service = ExternalService()
 	src = ""

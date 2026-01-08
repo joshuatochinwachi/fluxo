@@ -1,14 +1,3 @@
-# from fastapi import APIRouter
-
-# router = APIRouter()
-
-# @router.get('/yield')
-# async def Yield():
-
-#     # logic
-#     return {'agent':'yield','status':'ok'}
-
-
 from fastapi import APIRouter
 from tasks.agent_tasks import yield_task
 
