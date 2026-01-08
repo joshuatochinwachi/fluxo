@@ -201,7 +201,7 @@ async def get_alert_task_status(task_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post('/track-wallet')
+@router.post('/add/track-wallet')
 async def add_wallet_to_tracking(
     wallet_address: str = Query(..., description="Wallet address to track")
 ):
@@ -231,7 +231,7 @@ async def add_wallet_to_tracking(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete('/track-wallet')
+@router.delete('/remove/track-wallet')
 async def remove_wallet_from_tracking(
     wallet_address: str = Query(..., description="Wallet address to stop tracking")
 ):
@@ -266,7 +266,7 @@ async def remove_wallet_from_tracking(
         raise HTTPException(status_code=500, detail=str(e))
 
 # checked
-@router.get('/tracked-wallets')
+@router.get('/fetch/tracked-wallets')
 async def get_tracked_wallets():
     """
     Get list of all wallets being monitored
