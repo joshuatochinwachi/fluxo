@@ -7,18 +7,18 @@
 
 :root {
   /* Primary Brand Colors */
-  --fluxo-deep-purple: 280 68% 33%;      /* #5B1A8B - Deep Intelligence Purple */
-  --fluxo-royal-violet: 276 75% 40%;      /* #6A1BB1 - Royal Violet */
+  --fluxo-deep-purple: 280 85% 35%;      /* Increased Saturation */
+  --fluxo-royal-violet: 276 90% 45%;      /* More Vibrant */
   
   /* Supporting Purples */
-  --fluxo-mid-violet: 276 58% 50%;        /* #8E3CC8 - Mid Violet */
-  --fluxo-soft-lavender: 276 100% 75%;    /* #C77DFF - Soft Lavender */
-  --fluxo-signal-lilac: 276 100% 85%;     /* #E3A8FF - Signal Lilac (accent) */
+  --fluxo-mid-violet: 276 75% 55%;        /* #8E3CC8 -> More Vivid */
+  --fluxo-soft-lavender: 276 100% 70%;    /* Bolder Accent */
+  --fluxo-signal-lilac: 276 100% 80%;     /* Electric Accent */
   
   /* Neutrals */
-  --fluxo-white: 0 0% 100%;               /* #FFFFFF */
-  --fluxo-soft-gray: 270 20% 96%;         /* #F4F1F7 */
-  --fluxo-charcoal: 255 15% 12%;          /* #1E1B24 - Deep Charcoal */
+  --fluxo-white: 0 0% 100%;
+  --fluxo-soft-gray: 270 20% 98%;
+  --fluxo-charcoal: 255 20% 8%;          /* Deeper Black for contrast */
   
   /* Semantic Mappings */
   --background: var(--fluxo-white);
@@ -32,37 +32,37 @@
   --secondary: var(--fluxo-soft-gray);
   --secondary-foreground: var(--fluxo-charcoal);
   --muted: var(--fluxo-soft-gray);
-  --muted-foreground: 255 10% 45%;
+  --muted-foreground: 255 10% 40%;
   --accent: var(--fluxo-mid-violet);
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 62.8% 45%;
+  --destructive: 0 85% 50%;
   --destructive-foreground: 0 0% 100%;
-  --border: 270 15% 88%;
-  --input: 270 15% 88%;
+  --border: 270 15% 92%;
+  --input: 270 15% 92%;
   --ring: var(--fluxo-royal-violet);
-  --radius: 0.5rem;
+  --radius: 0.75rem;                      /* Slightly more premium radius */
 }
 
 /* Dark mode - Intelligence Interface */
 .dark {
   --background: var(--fluxo-charcoal);
-  --foreground: 0 0% 95%;
-  --card: 255 15% 15%;
-  --card-foreground: 0 0% 95%;
-  --popover: 255 15% 15%;
-  --popover-foreground: 0 0% 95%;
+  --foreground: 0 0% 98%;
+  --card: 255 20% 12%;                   /* Higher contrast card */
+  --card-foreground: 0 0% 98%;
+  --popover: 255 20% 12%;
+  --popover-foreground: 0 0% 98%;
   --primary: var(--fluxo-royal-violet);
   --primary-foreground: 0 0% 100%;
-  --secondary: 255 15% 20%;
-  --secondary-foreground: 0 0% 95%;
-  --muted: 255 15% 20%;
-  --muted-foreground: 270 10% 60%;
+  --secondary: 255 20% 15%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 255 20% 15%;
+  --muted-foreground: 270 10% 65%;
   --accent: var(--fluxo-mid-violet);
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 62.8% 45%;
+  --destructive: 0 90% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 255 15% 22%;
-  --input: 255 15% 22%;
+  --border: 255 20% 18%;
+  --input: 255 20% 18%;
   --ring: var(--fluxo-soft-lavender);
 }
 

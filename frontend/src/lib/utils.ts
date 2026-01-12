@@ -28,6 +28,20 @@ export function formatCompactNumber(value: number): string {
 }
 
 /**
+ * Format a token balance with flexible precision
+ * Ensures small numbers (e.g. 0.001) are visible
+ */
+export function formatTokenBalance(value: number, decimals = 6): string {
+  if (value === 0) return '0';
+  if (value < 0.000001) return value.toExponential(2);
+
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0,
+  }).format(value);
+}
+
+/**
  * Format a percentage
  */
 export function formatPercentage(value: number, decimals = 2): string {
@@ -54,7 +68,7 @@ export function formatRelativeTime(timestamp: string | Date): string {
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
   if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-  
+
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 

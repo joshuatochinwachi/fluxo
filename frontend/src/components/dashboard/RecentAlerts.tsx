@@ -17,6 +17,7 @@ interface RecentAlertsProps {
   alerts: Alert[];
   loading?: boolean;
   className?: string;
+  title?: string;
 }
 
 const alertIcons: Record<string, React.ReactNode> = {
@@ -35,12 +36,12 @@ const severityVariants: Record<string, 'success' | 'warning' | 'danger' | 'secon
   critical: 'danger',
 };
 
-export function RecentAlerts({ alerts, loading = false, className }: RecentAlertsProps) {
+export function RecentAlerts({ alerts, loading = false, className, title = "Recent Alerts" }: RecentAlertsProps) {
   if (loading) {
     return (
       <Card className={className}>
         <CardHeader>
-          <CardTitle>Recent Alerts</CardTitle>
+          <CardTitle>{title}</CardTitle>
           <CardDescription>Latest notifications and warnings</CardDescription>
         </CardHeader>
         <CardContent>
@@ -63,7 +64,7 @@ export function RecentAlerts({ alerts, loading = false, className }: RecentAlert
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle>Recent Alerts</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>Latest notifications and warnings</CardDescription>
       </CardHeader>
       <CardContent>
@@ -76,23 +77,23 @@ export function RecentAlerts({ alerts, loading = false, className }: RecentAlert
             <div className="space-y-4">
               {alerts.map((alert) => (
                 <div
-                  key={alert.id}
+                  key={alert.alert_id}
                   className="flex items-start gap-3 rounded-lg border border-border/50 p-3 transition-colors hover:bg-muted/50"
                 >
                   <div
                     className={cn(
                       'flex h-8 w-8 items-center justify-center rounded-full',
-                      getRiskColor(alert.severity).replace('text-', 'bg-') + '/10',
-                      getRiskColor(alert.severity)
+                      getRiskColor(alert.overall_severity).replace('text-', 'bg-') + '/10',
+                      getRiskColor(alert.overall_severity)
                     )}
                   >
-                    {alertIcons[alert.type] || <AlertTriangle className="h-4 w-4" />}
+                    <AlertTriangle className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-medium truncate">{alert.title}</p>
-                      <Badge variant={severityVariants[alert.severity]} className="text-[10px]">
-                        {alert.severity}
+                      <Badge variant={severityVariants[alert.overall_severity]} className="text-[10px]">
+                        {alert.overall_severity}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">

@@ -41,11 +41,6 @@ const mainNavItems: NavItem[] = [
     icon: <Wallet className="h-5 w-5" />,
   },
   {
-    title: 'Market Data',
-    href: '/market',
-    icon: <TrendingUp className="h-5 w-5" />,
-  },
-  {
     title: 'Yield',
     href: '/yield',
     icon: <PiggyBank className="h-5 w-5" />,

@@ -1,166 +1,106 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { Wallet, TrendingUp, Shield, Bell, Newspaper, RefreshCw } from 'lucide-react';
+import { Wallet, TrendingUp, Shield, Bell, Newspaper, RefreshCw, Layers } from 'lucide-react';
 import {
   StatCard,
   RecentAlerts,
   PortfolioChart,
-  PriceChart,
   TopYields,
 } from '@/components/dashboard';
-import { PremiumInsights } from '@/components/premium';
+const PremiumInsights = dynamic(() => import('@/components/premium').then(mod => mod.PremiumInsights), {
+  ssr: false,
+  loading: () => (
+    <Card className="relative overflow-hidden rounded-3xl border-primary/20">
+      <div className="p-12 flex flex-col items-center justify-center space-y-4">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary/40" />
+        <p className="text-[10px] font-black uppercase tracking-widest opacity-40 text-center">Loading Alpha Engine...</p>
+      </div>
+    </Card>
+  )
+});
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, Asset, YieldOpportunity } from '@/types';
+import {
+  useFluxo,
+  usePortfolio,
+  useAlerts,
+  useYieldOpportunities,
+  useRiskAnalysis
+} from '@/hooks/useFluxo';
 import { api, NewsItem } from '@/lib/api/client';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatRelativeTime, formatCurrency, cn } from '@/lib/utils';
 
-// Demo data - used as fallback when backend is unavailable
-const demoAlerts: Alert[] = [
-  {
-    id: '1',
-    type: 'whale',
-    severity: 'high',
-    title: 'Large MNT Transfer Detected',
-    message: '500,000 MNT moved from whale wallet to exchange',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    delivered: false,
-  },
-  {
-    id: '2',
-    type: 'price',
-    severity: 'medium',
-    title: 'ETH Price Alert',
-    message: 'ETH crossed $3,500 threshold',
-    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    delivered: true,
-  },
-  {
-    id: '3',
-    type: 'risk',
-    severity: 'low',
-    title: 'Portfolio Risk Update',
-    message: 'Your portfolio risk score improved to 6.2',
-    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    delivered: true,
-  },
-  {
-    id: '4',
-    type: 'yield',
-    severity: 'medium',
-    title: 'New Yield Opportunity',
-    message: 'USDC-MNT pool on Agni Finance now offering 18% APY',
-    timestamp: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    delivered: false,
-  },
+// Demo Data Fallbacks
+const demoAssets: Asset[] = [
+  { token_symbol: 'MNT', balance: 12500, value_usd: 15625, percentage: 45, token_address: '0x...', price: 1.25 },
+  { token_symbol: 'ETH', balance: 2.5, value_usd: 6250, percentage: 18, token_address: '0x...', price: 2500 },
+  { token_symbol: 'USDC', balance: 5000, value_usd: 5000, percentage: 14, token_address: '0x...', price: 1 },
+  { token_symbol: 'WMNT', balance: 8000, value_usd: 10000, percentage: 23, token_address: '0x...', price: 1.25 },
 ];
 
-const demoAssets: Asset[] = [
-  { token_address: '0x1', token_symbol: 'MNT', balance: 10000, value_usd: 8500, percentage: 42.5 },
-  { token_address: '0x2', token_symbol: 'ETH', balance: 2.5, value_usd: 8750, percentage: 43.75 },
-  { token_address: '0x3', token_symbol: 'USDC', balance: 2000, value_usd: 2000, percentage: 10 },
-  { token_address: '0x4', token_symbol: 'USDT', balance: 750, value_usd: 750, percentage: 3.75 },
+const demoAlerts: Alert[] = [
+  {
+    alert_id: 'd1',
+    title: 'High APY Opportunity',
+    message: 'MNT/ETH pool on FusionX is currently yielding 42% APY. Consider rebalancing.',
+    timestamp: new Date().toISOString(),
+    overall_severity: 'low',
+    delivered: false,
+    wallet_address: '0x...',
+    risk_level: 'low'
+  },
+  {
+    alert_id: 'd2',
+    title: 'Whale Movement Detected',
+    message: 'Large transfer of 1M MNT to Binance observed. Monitoring exchange inflow.',
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    overall_severity: 'medium',
+    delivered: true,
+    wallet_address: '0x...',
+    risk_level: 'medium'
+  }
 ];
 
 const demoYields: YieldOpportunity[] = [
-  { protocol: 'Agni Finance', pool: 'USDC-MNT', apy: 18.5, tvl: 5200000, risk_score: 4, token_pair: ['USDC', 'MNT'], network: 'mantle' },
-  { protocol: 'Lendle', pool: 'ETH Supply', apy: 12.3, tvl: 8500000, risk_score: 3, token_pair: ['ETH'], network: 'mantle' },
-  { protocol: 'FusionX', pool: 'MNT-ETH', apy: 24.8, tvl: 2100000, risk_score: 6, token_pair: ['MNT', 'ETH'], network: 'mantle' },
-  { protocol: 'Merchant Moe', pool: 'USDT-USDC', apy: 8.2, tvl: 12000000, risk_score: 2, token_pair: ['USDT', 'USDC'], network: 'mantle' },
-  { protocol: 'iZUMi', pool: 'MNT-USDC', apy: 21.5, tvl: 3400000, risk_score: 5, token_pair: ['MNT', 'USDC'], network: 'mantle' },
-];
-
-const demoPriceHistory = Array.from({ length: 24 }, (_, i) => ({
-  timestamp: new Date(Date.now() - (23 - i) * 60 * 60 * 1000).toISOString(),
-  price: 19500 + Math.random() * 1000 - 500 + i * 15,
-}));
-
-// Demo news for when backend is unavailable
-const demoNews: NewsItem[] = [
-  {
-    id: '1',
-    title: 'Bitcoin Surpasses $100K Milestone, Setting New All-Time High',
-    summary: 'Bitcoin has officially crossed the $100,000 mark for the first time in history, marking a significant milestone in cryptocurrency adoption.',
-    url: '#',
-    source: 'CoinDesk',
-    published_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    relevance: 0.95,
-    categories: ['Bitcoin', 'Markets'],
-    tags: ['BTC', 'ATH', 'Price'],
-  },
-  {
-    id: '2',
-    title: 'Ethereum L2 Networks See Record Transaction Volume',
-    summary: 'Layer 2 solutions on Ethereum processed over 10 million transactions in the past 24 hours, demonstrating growing adoption.',
-    url: '#',
-    source: 'The Block',
-    published_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    relevance: 0.88,
-    categories: ['Ethereum', 'Layer 2'],
-    tags: ['ETH', 'Arbitrum', 'Optimism'],
-  },
-  {
-    id: '3',
-    title: 'DeFi TVL Reaches New Heights Across Multiple Chains',
-    summary: 'Total value locked in DeFi protocols has surged to new highs, with Mantle Network showing particularly strong growth.',
-    url: '#',
-    source: 'DeFi Pulse',
-    published_at: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
-    relevance: 0.82,
-    categories: ['DeFi', 'TVL'],
-    tags: ['DeFi', 'Mantle', 'Yield'],
-  },
-  {
-    id: '4',
-    title: 'Institutional Investors Increase Crypto Allocations',
-    summary: 'Major financial institutions continue to expand their cryptocurrency portfolios, signaling growing mainstream acceptance.',
-    url: '#',
-    source: 'Bloomberg Crypto',
-    published_at: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-    relevance: 0.75,
-    categories: ['Institutional', 'Adoption'],
-    tags: ['Institutional', 'Investment'],
-  },
+  { protocol: 'FusionX', pool: 'MNT/WMNT', apy: 12.5, tvl: 5000000, risk_score: 2, token_pair: ['MNT', 'WMNT'], network: 'mantle' },
+  { protocol: 'Agni', pool: 'mETH/WETH', apy: 8.2, tvl: 12000000, risk_score: 1, token_pair: ['mETH', 'WETH'], network: 'mantle' },
 ];
 
 // News Digest Component
-function DailyDigest({ 
-  news, 
-  loading, 
+function DailyDigest({
+  news,
+  loading,
   error,
-  onRefresh 
-}: { 
-  news: NewsItem[]; 
-  loading: boolean; 
+  onRefresh
+}: {
+  news: NewsItem[];
+  loading: boolean;
   error: string | null;
   onRefresh: () => void;
 }) {
-  // Use demo news when backend is unavailable
-  const displayNews = error || news.length === 0 ? demoNews : news;
-  const isUsingDemo = error !== null || news.length === 0;
-
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/50 bg-background/50 h-full">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Newspaper className="h-5 w-5" />
-            Daily Digest
+          <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-tight font-black">
+            <Newspaper className="h-4 w-4 text-primary" />
+            Daily Intel Digest
           </CardTitle>
-          <CardDescription>Loading latest news...</CardDescription>
+          <CardDescription>Scanning global news sources...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-4 w-3/4 bg-primary/5" />
+                <Skeleton className="h-3 w-full bg-primary/5" />
               </div>
             ))}
           </div>
@@ -170,65 +110,55 @@ function DailyDigest({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="border-border/50 bg-background/50 h-full overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between bg-primary/5 border-b border-border/50">
         <div>
-          <CardTitle className="flex items-center gap-2">
-            <Newspaper className="h-5 w-5" />
-            Daily Digest
-            {isUsingDemo && (
-              <Badge variant="outline" className="text-[10px] ml-2">Demo</Badge>
-            )}
+          <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-tight font-black">
+            <Newspaper className="h-4 w-4 text-primary" />
+            Daily Intel Digest
           </CardTitle>
-          <CardDescription>
-            {isUsingDemo ? 'Sample news (connect backend for live data)' : `${news.length} stories from crypto news`}
+          <CardDescription className="text-[10px] font-bold">
+            {news.length > 0 ? `${news.length} verified news vectors` : 'No recent news vectors detected'}
           </CardDescription>
         </div>
-        <Button variant="ghost" size="icon" onClick={onRefresh}>
-          <RefreshCw className="h-4 w-4" />
+        <Button variant="ghost" size="icon" onClick={onRefresh} className="h-8 w-8 rounded-full hover:bg-primary/10">
+          <RefreshCw className="h-3 w-3" />
         </Button>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[300px]">
-          <div className="space-y-4">
-            {displayNews.map((item) => (
-              <a
-                key={item.id}
-                href={item.url}
+      <CardContent className="p-0">
+        <ScrollArea className="h-[350px]">
+          {news.length > 0 ? (
+            <div className="divide-y divide-border/50">
+              {news.map((item) => (
+                <a
+                  key={item.id}
+                  href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block p-3 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"
+                  className="block p-4 hover:bg-muted/30 transition-all font-medium"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-medium text-sm line-clamp-2">{item.title}</h4>
+                    <h4 className="font-bold text-xs line-clamp-2 leading-snug">{item.title}</h4>
                     {item.relevance && item.relevance > 0.8 && (
-                      <Badge variant="default" className="shrink-0 text-[10px]">Hot</Badge>
+                      <Badge className="shrink-0 text-[8px] bg-primary/10 text-primary border-none font-black uppercase tracking-widest">Hot</Badge>
                     )}
                   </div>
-                  {item.summary && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {item.summary}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-muted-foreground">{item.source}</span>
-                    <span className="text-xs text-muted-foreground">•</span>
-                    <span className="text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 mt-2 opacity-60">
+                    <span className="text-[10px] uppercase font-black tracking-tight">{item.source}</span>
+                    <span className="text-xs">•</span>
+                    <span className="text-[10px] font-mono">
                       {formatRelativeTime(item.published_at)}
                     </span>
                   </div>
-                  {item.tags && item.tags.length > 0 && (
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      {item.tags.slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-[10px]">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
                 </a>
               ))}
             </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-12 text-center space-y-2 opacity-40">
+              <Layers className="h-8 w-8" />
+              <p className="text-[10px] uppercase font-black tracking-widest">Awaiting News Ingest</p>
+            </div>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>
@@ -236,33 +166,23 @@ function DailyDigest({
 }
 
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [backendConnected, setBackendConnected] = useState(false);
+  const { isCheckingBackend, backendStatus, isWalletConnected } = useFluxo();
+  const { data: portfolioData, isLoading: portfolioLoading } = usePortfolio();
+  const { alerts: fetchedAlerts, isLoading: alertsLoading } = useAlerts();
+  const { opportunities: fetchedYields, isLoading: yieldsLoading } = useYieldOpportunities();
+  const { analysis: riskData, isLoading: riskLoading } = useRiskAnalysis();
+
   const [lastSyncTime, setLastSyncTime] = useState<string>('--:--:--');
-  
-  // Data states
-  const [alerts, setAlerts] = useState<Alert[]>(demoAlerts);
-  const [assets] = useState<Asset[]>(demoAssets);
-  const [yields] = useState<YieldOpportunity[]>(demoYields);
-  const [priceHistory] = useState(demoPriceHistory);
   const [digest, setDigest] = useState<NewsItem[]>([]);
   const [digestLoading, setDigestLoading] = useState(true);
   const [digestError, setDigestError] = useState<string | null>(null);
 
-  // Check backend connectivity
-  const checkBackend = useCallback(async () => {
-    try {
-      await api.system.health();
-      setBackendConnected(true);
-      setLastSyncTime(new Date().toLocaleTimeString());
-      return true;
-    } catch {
-      setBackendConnected(false);
-      return false;
-    }
-  }, []);
+  // Fallback Logic
+  const alerts = fetchedAlerts.length > 0 ? fetchedAlerts : demoAlerts;
+  const yields = fetchedYields.length > 0 ? fetchedYields : demoYields;
 
-  // Fetch digest
+  const backendConnected = backendStatus.isConnected;
+
   const fetchDigest = useCallback(async () => {
     setDigestLoading(true);
     setDigestError(null);
@@ -278,59 +198,61 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Fetch alerts
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const response = await api.alerts.list();
-      if (response.data && Array.isArray(response.data)) {
-        setAlerts(response.data as Alert[]);
-      }
-    } catch {
-      // Keep demo data on error
-    }
-  }, []);
-
-  // Initial data fetch
   useEffect(() => {
-    const init = async () => {
-      // Set initial sync time on client
-      setLastSyncTime(new Date().toLocaleTimeString());
-      
-      const connected = await checkBackend();
-      
-      if (connected) {
-        // Fetch all data in parallel
-        await Promise.all([
-          fetchDigest(),
-          fetchAlerts(),
-        ]);
-      } else {
-        setDigestLoading(false);
-        setDigestError('Backend not connected');
-      }
-      
-      setLoading(false);
-    };
+    setLastSyncTime(new Date().toLocaleTimeString());
+    if (backendConnected) {
+      fetchDigest();
+    } else {
+      setDigestLoading(false);
+    }
+  }, [backendConnected, fetchDigest]);
 
-    init();
-  }, [checkBackend, fetchDigest, fetchAlerts]);
+  // Real Data Mapping
+  const assets: Asset[] = useMemo(() => {
+    if (!portfolioData) return [];
 
-  const totalValue = assets.reduce((sum, asset) => sum + asset.value_usd, 0);
-  const unreadAlerts = alerts.filter(a => !a.delivered).length;
+    let rawAssets: any[] = [];
+    if (Array.isArray(portfolioData)) {
+      rawAssets = portfolioData;
+    } else if (typeof portfolioData === 'object' && portfolioData !== null) {
+      rawAssets = (portfolioData as any).assets || (portfolioData as any).result || (portfolioData as any).data || [];
+    }
+
+    const finalAssets = rawAssets.map((item: any) => ({
+      token_address: item.token_address || item.address || '',
+      token_symbol: item.token_symbol || item.symbol || 'TOKEN',
+      balance: Number(item.balance) || 0,
+      value_usd: Number(item.value_usd) || (Number(item.balance) * Number(item.price_usd || 0)) || 0,
+      percentage: Number(item.percentage_of_portfolio) || 0,
+      price: Number(item.price_usd) || 0,
+    })).sort((a, b) => b.value_usd - a.value_usd);
+
+    return finalAssets.length > 0 ? finalAssets : demoAssets;
+  }, [portfolioData]);
+
+  const totalValue = useMemo(() => assets.reduce((sum, a) => sum + a.value_usd, 0), [assets]);
+  const unreadAlertsCount = alerts.filter(a => !a.delivered).length;
+
+  // Format Risk Score
+  const displayRisk = useMemo(() => {
+    if (riskData?.risk_score) return `${riskData.risk_score.toFixed(1)} / 100`;
+    if (riskData?.risk_level) return riskData.risk_level.toUpperCase();
+    return '-- / 100';
+  }, [riskData]);
+
+
+  const loading = isCheckingBackend || alertsLoading || portfolioLoading || riskLoading;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-12">
       {/* Intelligence Interface Header */}
-      <div className="relative overflow-hidden rounded-lg border border-[#8E3CC8]/20 bg-gradient-to-br from-[#1E1B24] to-[#2A2534] p-8 md:p-12">
-        {/* Grid Pattern Overlay */}
-        <div className="absolute inset-0 pattern-grid opacity-30" />
-        
+      <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-background via-muted/20 to-primary/5 p-8 md:p-12 shadow-2xl">
+        <div className="absolute inset-0 pattern-grid opacity-10" />
+
         <div className="relative z-10 flex flex-col items-center text-center gap-6">
-          {/* Fluxo Logo */}
-          <div className="relative">
-            {/* Logo Glow Effect */}
-            <div className="absolute inset-0 bg-[#8E3CC8]/30 blur-3xl rounded-full scale-150" />
-            <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden shadow-2xl shadow-[#8E3CC8]/40">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-primary/30 blur-3xl rounded-full scale-150 group-hover:scale-175 transition-transform duration-700" />
+            <div className="relative w-32 h-32 md:w-36 md:h-36 rounded-2xl overflow-hidden shadow-2xl border-4 border-primary/20 bg-background">
               <Image
                 src="/fluxo-logo.jpg"
                 alt="Fluxo Logo"
@@ -340,33 +262,34 @@ export default function DashboardPage() {
               />
             </div>
           </div>
-          
-          {/* Content */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-2.5 w-2.5 rounded-full bg-[#C77DFF] animate-pulse-subtle" />
-              <span className="text-sm font-bold text-[#C77DFF] uppercase tracking-widest font-[family-name:var(--font-space-grotesk)]">
-                Intelligence Active
+
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-3 bg-primary/10 px-4 py-1.5 rounded-full border border-primary/20">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-xl font-[family-name:var(--font-vt323)] text-primary uppercase tracking-[0.2em] drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]">
+                {backendConnected ? 'INTELLIGENCE ACTIVE' : 'RESTORE_OVERSIGHT_NODE'}
               </span>
             </div>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white font-[family-name:var(--font-vt323)] tracking-wide">
-              Your private intelligence agent.
+            <h1 className="text-4xl md:text-6xl font-black text-foreground tracking-tighter leading-none mt-2 uppercase italic">
+              Your private <span className="text-primary group-hover:animate-pulse">intelligence agent.</span>
             </h1>
-            <p className="text-base md:text-lg text-white max-w-xl font-[family-name:var(--font-space-grotesk)]">
+            <p className="text-sm md:text-base text-muted-foreground max-w-xl font-medium mt-1 leading-relaxed opacity-80">
               Private intelligence monitoring. Portfolio tracking, risk analysis, and strategic execution.
             </p>
           </div>
-          
-          {/* Status */}
+
           <div className="flex items-center gap-4">
-            <Badge 
+            <Badge
               variant={backendConnected ? 'default' : 'outline'}
-              className={backendConnected ? 'bg-[#5B1A8B] font-bold' : 'border-[#8E3CC8]/50 text-[#C77DFF] font-bold'}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest border-none transition-all duration-500",
+                backendConnected ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground opacity-50"
+              )}
             >
-              {backendConnected ? '● Systems Online' : '○ Demo Mode'}
+              {backendConnected ? 'Systems Integrated' : 'Systems Restored'}
             </Badge>
-            <span className="text-xs font-medium text-[#8E3CC8]">
-              Last sync: {lastSyncTime}
+            <span className="text-sm font-[family-name:var(--font-vt323)] text-muted-foreground uppercase tracking-widest px-3 py-1 bg-muted/30 rounded-lg">
+              Last Sync: {lastSyncTime}
             </span>
           </div>
         </div>
@@ -375,96 +298,87 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Portfolio Value"
-          value={totalValue}
-          change={5.2}
-          icon={<Wallet className="h-4 w-4" />}
-          loading={loading}
+          title="VALUE LOCKED"
+          value={formatCurrency(totalValue)}
+          icon={<Wallet className="h-4 w-4 text-primary" />}
+          loading={loading && assets === demoAssets}
+          className="font-[family-name:var(--font-vt323)] text-3xl"
         />
         <StatCard
-          title="24h P&L"
-          value={1045}
-          change={2.8}
-          changeLabel="today"
-          icon={<TrendingUp className="h-4 w-4" />}
-          loading={loading}
-        />
-        <StatCard
-          title="Risk Score"
-          value="6.2 / 10"
-          change={-0.8}
-          changeLabel="improved"
-          icon={<Shield className="h-4 w-4" />}
-          loading={loading}
-        />
-        <StatCard
-          title="Active Alerts"
+          title="ALPHA VECTORS"
           value={alerts.length.toString()}
-          icon={<Bell className="h-4 w-4" />}
-          description={`${unreadAlerts} unread`}
-          loading={loading}
+          icon={<Bell className="h-4 w-4 text-primary" />}
+          description={`${unreadAlertsCount} URGENT INTEL`}
+          loading={loading && alerts === demoAlerts}
+          className="font-[family-name:var(--font-vt323)] text-3xl"
+        />
+        <StatCard
+          title="THREAT INDEX"
+          value={displayRisk}
+          icon={<Shield className="h-4 w-4 text-primary" />}
+          loading={loading && !riskData}
+          className="font-[family-name:var(--font-vt323)] text-3xl"
+        />
+        <StatCard
+          title="YIELD NODES"
+          value={yields.length.toString()}
+          icon={<TrendingUp className="h-4 w-4 text-primary" />}
+          description="ACTIVE STRATEGIES"
+          loading={loading && yields === demoYields}
+          className="font-[family-name:var(--font-vt323)] text-3xl"
         />
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-1">
         <PortfolioChart
           assets={assets}
           totalValue={totalValue}
-          loading={loading}
-        />
-        <PriceChart
-          data={priceHistory}
-          title="Portfolio Performance"
-          description="24-hour value history"
-          loading={loading}
-          color="#8E3CC8"
+          loading={loading && assets === demoAssets}
+          title="ALLOCATION VECTORS"
         />
       </div>
 
       {/* Bottom Row - Alerts + Digest + Yields */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <RecentAlerts alerts={alerts.slice(0, 5)} loading={loading} />
-        <DailyDigest 
-          news={digest} 
-          loading={digestLoading} 
+        <RecentAlerts alerts={alerts.slice(0, 5)} loading={loading && alerts === demoAlerts} title="ALPHA LOG" />
+        <DailyDigest
+          news={digest}
+          loading={digestLoading}
           error={digestError}
           onRefresh={fetchDigest}
         />
-        <TopYields yields={yields} loading={loading} />
+        <TopYields yields={yields.slice(0, 5)} loading={(loading || yieldsLoading) && yields === demoYields} title="YIELD NODES" />
       </div>
 
       {/* Premium Insights Section */}
       <div className="grid gap-6 lg:grid-cols-2">
         <PremiumInsights />
-        <Card className="relative overflow-hidden">
-          {/* Accent gradient */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#5B1A8B]/10 to-transparent rounded-bl-full" />
+        <Card className="relative overflow-hidden border-border/50 bg-background/50 rounded-3xl">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full" />
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-[family-name:var(--font-space-grotesk)]">
-              <Shield className="h-5 w-5 text-[#8E3CC8]" />
-              Security Status
+            <CardTitle className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+              <Shield className="h-4 w-4" />
+              INFRA OVERSIGHT
             </CardTitle>
-            <CardDescription>Wallet and protocol security overview</CardDescription>
+            <CardDescription className="text-[10px] font-bold">Node persistence and security metrics</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-md border border-[#8E3CC8]/20 bg-[#F4F1F7]/50 dark:bg-[#1E1B24]/50">
-                <span className="text-sm">Connected Protocols</span>
-                <Badge variant="secondary">4 verified</Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-md border border-[#8E3CC8]/20 bg-[#F4F1F7]/50 dark:bg-[#1E1B24]/50">
-                <span className="text-sm">Smart Contract Audits</span>
-                <Badge variant="success">All audited</Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-md border border-[#8E3CC8]/20 bg-[#F4F1F7]/50 dark:bg-[#1E1B24]/50">
-                <span className="text-sm">Risk Exposure</span>
-                <Badge variant="warning">Medium</Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-md border border-[#8E3CC8]/20 bg-[#F4F1F7]/50 dark:bg-[#1E1B24]/50">
-                <span className="text-sm">Wallet Health</span>
-                <Badge variant="success">Good</Badge>
-              </div>
+            <div className="space-y-3 font-[family-name:var(--font-vt323)]">
+              {[
+                { label: 'Network Integration', value: 'Mantle Mainnet', status: 'verified' },
+                { label: 'Security Clearance', value: 'High Level', status: 'secure' },
+                { label: 'Data Latency', value: '< 2.4s', status: 'optimal' },
+                { label: 'Wallet Persistence', value: 'Active Monitoring', status: 'live' }
+              ].map((node) => (
+                <div key={node.label} className="flex items-center justify-between p-4 rounded-2xl border border-border/50 bg-muted/20 group hover:bg-primary/5 transition-all">
+                  <span className="text-xl uppercase tracking-widest text-muted-foreground opacity-60">{node.label}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl uppercase text-primary">{node.value}</span>
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

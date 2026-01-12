@@ -1,16 +1,49 @@
 'use client';
 
-import { useAccount, useChainId, useChains } from 'wagmi';
-import { useState, useEffect, useCallback } from 'react';
-import { api, pollTaskStatus, type TaskStatus, type APIResponse } from '@/lib/api/client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { api, pollTaskStatus } from '@/lib/api/client';
+import { Alert, Transaction } from '@/types';
+import { useFluxo as useFluxoContext } from '@/providers/FluxoProvider';
 
-// ============= Types =============
+// ============= useFluxo Hook =============
 
-export interface BackendStatus {
-  isConnected: boolean;
-  version?: string;
-  error?: string;
+/**
+ * Main hook to access global Fluxo state and network info.
+ * Now consumes from FluxoProvider context to ensure shared state.
+ */
+export function useFluxo() {
+  return useFluxoContext();
 }
+
+/**
+ * Intelligence Alerts hook.
+ * Consumes global alert state from FluxoProvider.
+ */
+export function useAlerts() {
+  const {
+    alerts,
+    trackedWallets,
+    isAlertsLoading: isLoading,
+    alertsError: error,
+    fetchAlerts: refetch,
+    addTrackWallet,
+    removeTrackWallet,
+    markDelivered
+  } = useFluxoContext();
+
+  return {
+    alerts,
+    trackedWallets,
+    isLoading,
+    error,
+    refetch,
+    addTrackWallet,
+    removeTrackWallet,
+    markDelivered
+  };
+}
+
+// ============= usePortfolio Hook =============
 
 export interface PortfolioState {
   isLoading: boolean;
@@ -18,79 +51,8 @@ export interface PortfolioState {
   error: string | null;
 }
 
-// ============= useFluxo Hook =============
-
-export function useFluxo() {
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-  const chains = useChains();
-  
-  const [backendStatus, setBackendStatus] = useState<BackendStatus>({
-    isConnected: false,
-  });
-  const [isCheckingBackend, setIsCheckingBackend] = useState(true);
-
-  // Check backend connection on mount
-  useEffect(() => {
-    const checkBackend = async () => {
-      setIsCheckingBackend(true);
-      try {
-        const response = await api.system.root();
-        setBackendStatus({
-          isConnected: response.success,
-          version: response.version,
-        });
-      } catch (error) {
-        setBackendStatus({
-          isConnected: false,
-          error: error instanceof Error ? error.message : 'Backend unreachable',
-        });
-      } finally {
-        setIsCheckingBackend(false);
-      }
-    };
-
-    checkBackend();
-    // Re-check every 30 seconds
-    const interval = setInterval(checkBackend, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Get current chain info
-  const currentChain = chains.find((c) => c.id === chainId);
-
-  // Get network name for API calls
-  const getNetworkName = useCallback(() => {
-    if (!currentChain) return 'mantle';
-    switch (currentChain.id) {
-      case 5000: return 'mantle';
-      case 5003: return 'mantle-sepolia';
-      case 1: return 'ethereum';
-      case 8453: return 'base';
-      case 84532: return 'base-sepolia';
-      default: return 'mantle';
-    }
-  }, [currentChain]);
-
-  return {
-    // Wallet state
-    address,
-    isWalletConnected: isConnected,
-    chainId,
-    currentChain,
-    networkName: getNetworkName(),
-    
-    // Backend state
-    backendStatus,
-    isCheckingBackend,
-    isFullyConnected: isConnected && backendStatus.isConnected,
-  };
-}
-
-// ============= usePortfolio Hook =============
-
 export function usePortfolio() {
-  const { address, isWalletConnected, backendStatus } = useFluxo();
+  const { address, isWalletConnected, backendStatus } = useFluxoContext();
   const [state, setState] = useState<PortfolioState>({
     isLoading: false,
     data: null,
@@ -99,473 +61,335 @@ export function usePortfolio() {
 
   const fetchPortfolio = useCallback(async () => {
     if (!address || !backendStatus.isConnected) return;
-    
+
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
     try {
       const response = await api.portfolio.get(address);
-      const responseData = response.data as Record<string, unknown> | undefined;
-      setState({
-        isLoading: false,
-        data: responseData?.result || responseData || null,
-        error: null,
-      });
-    } catch (error) {
+      const data = response.data as any;
+
+      if (data.task_id) {
+        const result = await pollTaskStatus(
+          api.portfolio.getStatus,
+          data.task_id,
+          { interval: 2000, timeout: 60000 }
+        );
+        setState({ isLoading: false, data: result, error: null });
+      } else {
+        setState({ isLoading: false, data: data, error: null });
+      }
+    } catch (err) {
       setState({
         isLoading: false,
         data: null,
-        error: error instanceof Error ? error.message : 'Failed to fetch portfolio',
+        error: err instanceof Error ? err.message : 'Failed to fetch portfolio'
       });
     }
   }, [address, backendStatus.isConnected]);
 
-  // Fetch portfolio when wallet connects - this is intentional synchronization
   useEffect(() => {
+    const isMounted = { current: true };
     if (isWalletConnected && backendStatus.isConnected) {
       fetchPortfolio();
     }
+    return () => { isMounted.current = false; };
   }, [isWalletConnected, backendStatus.isConnected, fetchPortfolio]);
 
-  return {
-    ...state,
-    refetch: fetchPortfolio,
-  };
+  return { ...state, refetch: fetchPortfolio };
 }
 
-// ============= useRiskAnalysis Hook =============
+// ============= useWhaleMovements Hook =============
 
-export function useRiskAnalysis() {
-  const { address, backendStatus } = useFluxo();
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<unknown | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
-
-  const analyze = useCallback(async (marketCorrelation?: number) => {
-    if (!address || !backendStatus.isConnected) return;
-    
-    setIsAnalyzing(true);
-    setError(null);
-    
-    try {
-      const response = await api.risk.analyze(address, marketCorrelation);
-      const responseData = response.data as Record<string, unknown> | undefined;
-      const taskIdFromResponse = responseData?.task_id as string | undefined;
-      
-      if (taskIdFromResponse) {
-        setTaskId(taskIdFromResponse);
-        const analysisResult = await pollTaskStatus(
-          api.risk.getStatus as (taskId: string) => Promise<APIResponse<TaskStatus<unknown>>>,
-          taskIdFromResponse,
-          { interval: 2000, timeout: 60000 }
-        );
-        setResult(analysisResult);
-      } else {
-        setResult(response.data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Risk analysis failed');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [address, backendStatus.isConnected]);
-
-  return {
-    analyze,
-    isAnalyzing,
-    result,
-    error,
-    taskId,
-  };
-}
-
-// ============= useAlerts Hook =============
-
-export function useAlerts() {
-  const { address, backendStatus } = useFluxo();
-  const [alerts, setAlerts] = useState<unknown[]>([]);
+export function useWhaleMovements() {
+  const [movements, setMovements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAlerts = useCallback(async (limit = 50) => {
+  const fetchMovements = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
-    
     try {
-      const response = await api.alerts.list(address || undefined, limit);
-      const responseData = response.data as Record<string, unknown> | undefined;
-      setAlerts((responseData?.alerts as unknown[]) || []);
+      const response = await api.whale.track();
+      const data = response.data as any;
+
+      if (data.task_id) {
+        const result = await pollTaskStatus(
+          api.whale.getStatus,
+          data.task_id,
+          { interval: 2000, timeout: 60000 }
+        );
+        const resultData = result as any;
+        setMovements(resultData.movements || []);
+      } else {
+        setMovements(data.movements || []);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch alerts');
-      setAlerts([]);
+      setError(err instanceof Error ? err.message : 'Failed to fetch whale movements');
     } finally {
       setIsLoading(false);
     }
-  }, [address]);
-
-  const markDelivered = useCallback(async (alertId: string, deliveryMethod = 'web') => {
-    if (!address) return;
-    
-    try {
-      await api.alerts.markDelivered(alertId, address, deliveryMethod);
-      await fetchAlerts();
-    } catch (err) {
-      console.error('Failed to mark alert as delivered:', err);
-    }
-  }, [address, fetchAlerts]);
+  }, []);
 
   useEffect(() => {
-    if (backendStatus.isConnected) {
-      fetchAlerts();
-    }
-  }, [backendStatus.isConnected, fetchAlerts]);
+    const isMounted = { current: true };
+    fetchMovements();
+    return () => { isMounted.current = false; };
+  }, [fetchMovements]);
 
-  return {
-    alerts,
-    isLoading,
-    error,
-    refetch: fetchAlerts,
-    markDelivered,
-  };
+  return { movements, isLoading, error, refetch: fetchMovements };
 }
 
-// ============= useSocialSentiment Hook =============
-
-export function useSocialSentiment() {
-  const { backendStatus } = useFluxo();
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<unknown | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const analyze = useCallback(async (timeframe = '24h') => {
-    if (!backendStatus.isConnected) return;
-    
-    setIsAnalyzing(true);
-    setError(null);
-    
-    try {
-      const response = await api.social.analyze(timeframe);
-      const responseData = response.data as Record<string, unknown> | undefined;
-      const taskIdFromResponse = responseData?.task_id as string | undefined;
-      
-      if (taskIdFromResponse) {
-        const analysisResult = await pollTaskStatus(
-          api.social.getStatus as (taskId: string) => Promise<APIResponse<TaskStatus<unknown>>>,
-          taskIdFromResponse,
-          { interval: 2000, timeout: 60000 }
-        );
-        setResult(analysisResult);
-      } else {
-        setResult(response.data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Social analysis failed');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [backendStatus.isConnected]);
-
-  const getTokenSentiment = useCallback(async (tokenSymbol: string) => {
-    if (!backendStatus.isConnected) return null;
-    
-    try {
-      const response = await api.social.sentiment(tokenSymbol);
-      return response.data;
-    } catch (err) {
-      console.error('Failed to get token sentiment:', err);
-      return null;
-    }
-  }, [backendStatus.isConnected]);
-
-  return {
-    analyze,
-    getTokenSentiment,
-    isAnalyzing,
-    result,
-    error,
-  };
-}
-
-// ============= useYieldOpportunities Hook =============
-
-export function useYieldOpportunities() {
-  const { backendStatus } = useFluxo();
-  const [opportunities, setOpportunities] = useState<unknown[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchOpportunities = useCallback(async () => {
-    if (!backendStatus.isConnected) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await api.yield.get();
-      if (response.task_id) {
-        const result = await pollTaskStatus(
-          api.yield.getStatus as unknown as (taskId: string) => Promise<TaskStatus<unknown[]>>,
-          response.task_id,
-          { interval: 2000, timeout: 60000 }
-        );
-        setOpportunities(Array.isArray(result) ? result : []);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch yield opportunities');
-      setOpportunities([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [backendStatus.isConnected]);
-
-  useEffect(() => {
-    if (backendStatus.isConnected) {
-      fetchOpportunities();
-    }
-  }, [backendStatus.isConnected, fetchOpportunities]);
-
-  return {
-    opportunities,
-    isLoading,
-    error,
-    refetch: fetchOpportunities,
-  };
-}
-
-// ============= useWhaleTracking Hook =============
-
-export function useWhaleTracking() {
-  const { backendStatus } = useFluxo();
-  const [movements, setMovements] = useState<unknown[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const track = useCallback(async (timeframe = '24h', minValueUsd = 100000) => {
-    if (!backendStatus.isConnected) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await api.whale.track(timeframe, minValueUsd);
-      const responseData = response.data as Record<string, unknown> | undefined;
-      const taskIdFromResponse = responseData?.task_id as string | undefined;
-      
-      if (taskIdFromResponse) {
-        const result = await pollTaskStatus(
-          api.whale.getStatus as unknown as (taskId: string) => Promise<APIResponse<TaskStatus<unknown[]>>>,
-          taskIdFromResponse,
-          { interval: 2000, timeout: 60000 }
-        );
-        setMovements(Array.isArray(result) ? result : []);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to track whales');
-      setMovements([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [backendStatus.isConnected]);
-
-  return {
-    movements,
-    isLoading,
-    error,
-    track,
-  };
-}
 // ============= useOnchainData Hook =============
 
 export function useOnchainData() {
-  const { address, backendStatus } = useFluxo();
-  const [protocols, setProtocols] = useState<unknown[]>([]);
-  const [transactions, setTransactions] = useState<unknown[]>([]);
+  const { address } = useFluxoContext();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProtocols = useCallback(async () => {
-    if (!backendStatus.isConnected) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await api.onchain.protocols();
-      const responseData = response.data as Record<string, unknown> | undefined;
-      const taskIdFromResponse = responseData?.task_id as string | undefined;
-      if (taskIdFromResponse) {
-        const result = await pollTaskStatus(
-          api.onchain.getStatus as unknown as (taskId: string) => Promise<APIResponse<TaskStatus<unknown[]>>>,
-          taskIdFromResponse,
-          { interval: 2000, timeout: 60000 }
-        );
-        setProtocols(Array.isArray(result) ? result : []);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch protocols');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [backendStatus.isConnected]);
-
   const fetchTransactions = useCallback(async () => {
-    if (!address || !backendStatus.isConnected) return;
-    
+    if (!address) return;
     setIsLoading(true);
-    setError(null);
-    
+
     try {
       const response = await api.onchain.transactions(address);
-      setTransactions((response.data as unknown[]) || []);
+      const data = response.data as any;
+      if (data.task_id) {
+        const result = await pollTaskStatus(
+          api.onchain.getStatus,
+          data.task_id,
+          { interval: 2000, timeout: 60000 }
+        );
+        // Ensure result is mapped to the standard Transaction interface
+        const mappedResult = (Array.isArray(result) ? result : []).map((tx: any) => ({
+          ...tx,
+          id: tx.id || tx.tx_hash,
+          amount: tx.amount || tx.value || 0,
+          token: tx.token || tx.tokenSymbol || '??',
+          timestamp: tx.timestamp || tx.transaction_time || new Date().toISOString(),
+          value_usd: tx.value_usd || 0,
+        }));
+        setTransactions(mappedResult as Transaction[]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch transactions');
     } finally {
       setIsLoading(false);
     }
-  }, [address, backendStatus.isConnected]);
+  }, [address]);
 
   useEffect(() => {
-    if (backendStatus.isConnected) {
-      fetchProtocols();
-      if (address) {
-        fetchTransactions();
-      }
-    }
-  }, [backendStatus.isConnected, address, fetchProtocols, fetchTransactions]);
+    const isMounted = { current: true };
+    if (address) fetchTransactions();
+    return () => { isMounted.current = false; };
+  }, [address, fetchTransactions]);
 
-  return {
-    protocols,
-    transactions,
-    isLoading,
-    error,
-    refetchProtocols: fetchProtocols,
-    refetchTransactions: fetchTransactions,
+  return { transactions, isLoading, error, refetch: fetchTransactions };
+}
+
+// ============= useX402 Hook =============
+
+export function useX402() {
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const executePayment = async (params: any) => {
+    setIsExecuting(true);
+    setError(null);
+    try {
+      const response = await api.x402.get();
+
+      if (response.task_id) {
+        setStatus('Processing payment...');
+        const result = await pollTaskStatus(
+          api.x402.getStatus,
+          response.task_id,
+          { interval: 2000, timeout: 120000 }
+        );
+        setStatus('Payment successful');
+        return result;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment execution failed');
+      throw err;
+    } finally {
+      setIsExecuting(false);
+    }
   };
+
+  return { executePayment, isExecuting, status, error };
+}
+
+// ============= useYieldOpportunities Hook =============
+
+export function useYieldOpportunities() {
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchYields = useCallback(async () => {
+    setIsLoading(true);
+    setOpportunities([]); // Clear previous state to trigger loading UI if desired
+    try {
+      const response = await api.yield.start();
+
+      if (response && response.task_id) {
+        const result = await pollTaskStatus(
+          api.yield.getStatus,
+          response.task_id,
+          { interval: 2000, timeout: 60000 }
+        );
+
+        // Map Backend Data to Frontend Model
+        const mappedYields = (Array.isArray(result) ? result : []).map((item: any) => {
+          // Risk Calculation Algorithm
+          let riskScore = 5; // Base medium risk
+
+          // APY Risk Factors
+          if (item.apy > 100) riskScore += 4;
+          else if (item.apy > 50) riskScore += 3;
+          else if (item.apy > 20) riskScore += 1;
+
+          // TVL Safety Factors (Higher TVL = Lower Risk)
+          if (item.tvlUsd > 1000000) riskScore -= 3;
+          else if (item.tvlUsd > 500000) riskScore -= 2;
+          else if (item.tvlUsd < 50000) riskScore += 2; // Low liquidity penalty
+
+          // Clamp score 1-10
+          riskScore = Math.max(1, Math.min(10, riskScore));
+
+          return {
+            protocol: item.project || 'Unknown',
+            pool: item.symbol || 'Unknown Pair',
+            apy: Number(item.apy) || 0,
+            tvl: Number(item.tvlUsd) || 0,
+            risk_score: riskScore,
+            token_pair: (item.symbol || '').split('-'),
+            network: 'Mantle'
+          };
+        });
+
+        setOpportunities(mappedYields);
+      }
+    } catch (err) {
+      console.error('Yield Fetch Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch yield opportunities');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchYields();
+  }, [fetchYields]);
+
+  return { opportunities, isLoading, error, refetch: fetchYields };
+}
+
+// ============= useRiskAnalysis Hook =============
+
+export function useRiskAnalysis(walletAddress?: string) {
+  const { address } = useFluxoContext();
+  const targetAddress = walletAddress || address;
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const runAnalysis = useCallback(async () => {
+    if (!targetAddress) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await api.risk.analyze(targetAddress);
+      const data = response.data as any;
+      if (data.task_id) {
+        const result = await pollTaskStatus(
+          api.risk.getStatus,
+          data.task_id,
+          { interval: 2000, timeout: 60000 }
+        );
+
+        // Extract the nested risk_analysis object from the result
+        const riskAnalysis = (result as any)?.risk_analysis || result;
+        setAnalysis(riskAnalysis);
+      }
+    } catch (err) {
+      console.error('Risk Analysis Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to run risk analysis');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [targetAddress]);
+
+  useEffect(() => {
+    if (targetAddress) runAnalysis();
+  }, [targetAddress, runAnalysis]);
+
+  return { analysis, isLoading, error, refetch: runAnalysis };
+}
+
+// ============= useSocialSentiment Hook =============
+
+export function useSocialSentiment() {
+  const [sentiment, setSentiment] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSentiment = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.social.analyze();
+      const data = response.data as any;
+      if (data?.task_id) {
+        const result = await pollTaskStatus(
+          api.social.getStatus,
+          data.task_id,
+          { interval: 2000, timeout: 60000 }
+        );
+        setSentiment(result);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch social sentiment');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSentiment();
+  }, [fetchSentiment]);
+
+  return { sentiment, isLoading, error, refetch: fetchSentiment };
 }
 
 // ============= useMarketData Hook =============
 
 export function useMarketData() {
-  const { backendStatus } = useFluxo();
-  const [data, setData] = useState<unknown | null>(null);
+  const [marketData, setMarketData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMarketData = useCallback(async () => {
-    if (!backendStatus.isConnected) return;
-    
+  const fetchMarket = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
-    
     try {
-      const response = await api.market.getData();
-      if (response.task_id) {
+      const response = await api.market.getData() as any;
+      if (response?.task_id) {
         const result = await pollTaskStatus(
-          api.market.getStatus as unknown as (taskId: string) => Promise<TaskStatus<unknown>>,
+          api.market.getStatus,
           response.task_id,
           { interval: 2000, timeout: 60000 }
         );
-        setData(result);
+        setMarketData(result);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch market data');
     } finally {
       setIsLoading(false);
     }
-  }, [backendStatus.isConnected]);
+  }, []);
 
   useEffect(() => {
-    if (backendStatus.isConnected) {
-      fetchMarketData();
-    }
-  }, [backendStatus.isConnected, fetchMarketData]);
+    fetchMarket();
+  }, [fetchMarket]);
 
-  return {
-    data,
-    isLoading,
-    error,
-    refetch: fetchMarketData,
-  };
+  return { marketData, isLoading, error, refetch: fetchMarket };
 }
-
-// ============= useDailyDigest Hook =============
-
-export function useDailyDigest() {
-  const { backendStatus } = useFluxo();
-  const [digest, setDigest] = useState<unknown[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchDigest = useCallback(async () => {
-    if (!backendStatus.isConnected) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await api.digest.get();
-      setDigest(Array.isArray(response) ? response : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch digest');
-      setDigest([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [backendStatus.isConnected]);
-
-  useEffect(() => {
-    if (backendStatus.isConnected) {
-      fetchDigest();
-    }
-  }, [backendStatus.isConnected, fetchDigest]);
-
-  return {
-    digest,
-    isLoading,
-    error,
-    refetch: fetchDigest,
-  };
-}
-
-// ============= useX402 Hook =============
-
-export function useX402() {
-  const { backendStatus } = useFluxo();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<unknown | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const executePayment = useCallback(async () => {
-    if (!backendStatus.isConnected) return;
-    
-    setIsProcessing(true);
-    setError(null);
-    
-    try {
-      const response = await api.x402.get();
-      if (response.task_id) {
-        const paymentResult = await pollTaskStatus(
-          api.x402.getStatus,
-          response.task_id,
-          { interval: 2000, timeout: 60000 }
-        );
-        setResult(paymentResult);
-        return paymentResult;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment failed');
-      throw err;
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [backendStatus.isConnected]);
-
-  return {
-    executePayment,
-    isProcessing,
-    result,
-    error,
-  };
-}
-
-export default useFluxo;

@@ -30,8 +30,8 @@ import { cn, copyToClipboard } from '@/lib/utils';
 
 export default function SettingsPage() {
   const { address, isConnected } = useAccount();
-  const { executePayment, isProcessing, result, error: paymentError } = useX402();
-  
+  const { executePayment, isExecuting: isProcessing, status: result, error: paymentError } = useX402();
+
   const [notifications, setNotifications] = useState({
     priceAlerts: true,
     whaleMovements: true,
@@ -43,7 +43,7 @@ export default function SettingsPage() {
 
   const [apiKey, setApiKey] = useState('');
   const [walletAddress, setWalletAddress] = useState('0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb');
-  
+
   // x402 Payment Configuration
   const x402Config = {
     payToAddress: '0xEd04925173FAD6A8e8939338ccF23244cae1fF12',
@@ -237,8 +237,8 @@ export default function SettingsPage() {
                     <div>
                       <p className="font-medium text-sm">How x402 Works</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        x402 enables seamless micropayments for API requests. When you access a premium feature, 
-                        your connected wallet automatically signs a payment transaction. No subscriptions needed - 
+                        x402 enables seamless micropayments for API requests. When you access a premium feature,
+                        your connected wallet automatically signs a payment transaction. No subscriptions needed -
                         pay only for what you use.
                       </p>
                     </div>
@@ -306,9 +306,9 @@ export default function SettingsPage() {
                         <span className="text-sm font-mono">
                           {x402Config.payToAddress.slice(0, 6)}...{x402Config.payToAddress.slice(-4)}
                         </span>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-6 w-6"
                           onClick={() => copyToClipboard(x402Config.payToAddress)}
                         >
@@ -330,7 +330,7 @@ export default function SettingsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {premiumFeatures.map((feature) => (
-                    <div 
+                    <div
                       key={feature.name}
                       className="flex items-center justify-between p-4 rounded-lg border border-border/50"
                     >
@@ -357,8 +357,8 @@ export default function SettingsPage() {
                           {feature.enabled ? 'Active' : 'Coming Soon'}
                         </Badge>
                         {feature.enabled && (
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             disabled={!isConnected || isProcessing}
                             onClick={executePayment}
                           >

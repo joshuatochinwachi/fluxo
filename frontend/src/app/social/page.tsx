@@ -61,13 +61,13 @@ interface RecentPost {
 export default function SocialPage() {
   const [searchToken, setSearchToken] = useState('MNT');
   const [activeToken, setActiveToken] = useState('MNT');
-  const { analyze, isAnalyzing, result, error } = useSocialSentiment();
+  const { sentiment: result, isLoading: isAnalyzing, error, refetch: analyze } = useSocialSentiment();
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Initial load
   useEffect(() => {
     const init = async () => {
-      await analyze('24h');
+      await analyze();
       setIsInitialLoad(false);
     };
     init();
@@ -75,7 +75,7 @@ export default function SocialPage() {
 
   const handleAnalyze = async () => {
     setActiveToken(searchToken);
-    await analyze('24h');
+    await analyze();
   };
 
   // Extract data from API response
@@ -130,7 +130,7 @@ export default function SocialPage() {
           <CardContent className="flex flex-col items-center justify-center py-24">
             <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
             <p className="text-muted-foreground mb-4">Failed to load sentiment data</p>
-            <Button variant="outline" onClick={() => analyze('24h')}>
+            <Button variant="outline" onClick={() => analyze()}>
               Try Again
             </Button>
           </CardContent>
@@ -196,8 +196,8 @@ export default function SocialPage() {
                       sentimentLabel === 'positive' || sentimentLabel === 'very_positive'
                         ? 'success'
                         : sentimentLabel === 'neutral'
-                        ? 'secondary'
-                        : 'danger'
+                          ? 'secondary'
+                          : 'danger'
                     }
                   >
                     {sentimentLabel.replace('_', ' ')}
@@ -362,7 +362,7 @@ export default function SocialPage() {
                       <div className={cn(
                         'h-8 w-8 rounded-full flex items-center justify-center',
                         post.sentiment === 'positive' ? 'bg-green-500/10' :
-                        post.sentiment === 'negative' ? 'bg-red-500/10' : 'bg-gray-500/10'
+                          post.sentiment === 'negative' ? 'bg-red-500/10' : 'bg-gray-500/10'
                       )}>
                         {post.sentiment === 'positive' ? (
                           <ThumbsUp className="h-4 w-4 text-green-500" />

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import React from "react";
 import { Space_Grotesk, Inter, IBM_Plex_Sans, VT323 } from "next/font/google";
 import "./globals.css";
+import "./glassmorphism.css";
 import '@rainbow-me/rainbowkit/styles.css';
 import { MainLayout } from "@/components/layout";
 import { Web3Provider } from "@/lib/wagmi";
@@ -35,6 +37,8 @@ export const metadata: Metadata = {
   keywords: ["DeFi", "Web3", "Crypto", "Intelligence", "Privacy", "Autonomous"],
 };
 
+import { FluxoProvider } from "@/providers/FluxoProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -46,7 +50,9 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${inter.variable} ${ibmPlex.variable} ${vt323.variable} antialiased`}
       >
         <Web3Provider>
-          <MainLayout>{children}</MainLayout>
+          <FluxoProvider>
+            <MainLayout>{children}</MainLayout>
+          </FluxoProvider>
         </Web3Provider>
       </body>
     </html>

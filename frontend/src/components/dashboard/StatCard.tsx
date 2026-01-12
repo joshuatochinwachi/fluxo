@@ -34,7 +34,7 @@ export function StatCard({
   const formattedValue = typeof value === 'number' ? formatCurrency(value) : value;
 
   return (
-    <Card className={cn('relative overflow-hidden', className)}>
+    <Card className={cn('border-border/50 bg-background/50 relative overflow-hidden group stat-glass', className)}>
       {/* Subtle accent line at top */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#5B1A8B] to-[#8E3CC8]" />
       <CardHeader className="flex flex-row items-center justify-between pb-2">

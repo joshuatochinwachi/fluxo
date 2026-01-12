@@ -17,6 +17,7 @@ interface TopYieldsProps {
   yields: YieldOpportunity[];
   loading?: boolean;
   className?: string;
+  title?: string;
 }
 
 const getRiskBadgeVariant = (score: number): 'success' | 'warning' | 'danger' => {
@@ -25,12 +26,12 @@ const getRiskBadgeVariant = (score: number): 'success' | 'warning' | 'danger' =>
   return 'danger';
 };
 
-export function TopYields({ yields, loading = false, className }: TopYieldsProps) {
+export function TopYields({ yields, loading = false, className, title = "Top Yield Opportunities" }: TopYieldsProps) {
   if (loading) {
     return (
       <Card className={className}>
         <CardHeader>
-          <CardTitle>Top Yield Opportunities</CardTitle>
+          <CardTitle>{title}</CardTitle>
           <CardDescription>Best DeFi yields across protocols</CardDescription>
         </CardHeader>
         <CardContent>
@@ -54,7 +55,7 @@ export function TopYields({ yields, loading = false, className }: TopYieldsProps
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle>Top Yield Opportunities</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>Best DeFi yields across protocols</CardDescription>
       </CardHeader>
       <CardContent>

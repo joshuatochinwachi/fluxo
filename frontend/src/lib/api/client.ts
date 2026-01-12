@@ -3,7 +3,8 @@
  * Comprehensive API client for all backend endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = '/api/proxy';
+import { Transaction, Alert } from '@/types';
 
 // ============= Types =============
 
@@ -27,17 +28,19 @@ export interface TaskStatus<T = unknown> {
   error?: string;
 }
 
+export interface PortfolioAsset {
+  user_address: string;
+  token_address: string;
+  token_symbol: string;
+  balance: number;
+  value_usd: number;
+  price_usd: number;
+  percentage_of_portfolio: number;
+}
+
 export interface PortfolioData {
-  wallet_address: string;
-  total_value_usd: number;
-  assets: Array<{
-    token_address: string;
-    token_symbol: string;
-    balance: number;
-    value_usd: number;
-    percentage: number;
-  }>;
-  last_updated: string;
+  task_id: string | null;
+  check_status: string;
 }
 
 export interface RiskAnalysis {
@@ -79,17 +82,7 @@ export interface WhaleMovement {
   timestamp: string;
 }
 
-export interface Alert {
-  id: string;
-  type: 'price' | 'whale' | 'risk' | 'social' | 'yield' | 'portfolio';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  title: string;
-  message: string;
-  timestamp: string;
-  delivered: boolean;
-  wallet_address?: string;
-}
-
+// Redundant types removed - imported from @/types
 export interface NewsItem {
   id: string;
   title: string;
@@ -104,6 +97,10 @@ export interface NewsItem {
 
 interface RequestConfig extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+  next?: {
+    revalidate?: number | false;
+    tags?: string[];
+  };
 }
 
 class APIClient {
@@ -114,7 +111,17 @@ class APIClient {
   }
 
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
-    const url = new URL(`${this.baseUrl}${endpoint}`);
+    const baseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const baseUrlStr = `${baseUrl}${cleanEndpoint}`;
+    let url: URL;
+    try {
+      url = new URL(baseUrlStr);
+    } catch {
+      // Handle relative URLs (like /api/proxy)
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      url = new URL(baseUrlStr, origin);
+    }
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined) {
@@ -175,64 +182,68 @@ export const apiClient = new APIClient(API_BASE_URL);
 export const api = {
   // Portfolio
   portfolio: {
-    get: (address: string) => 
-      apiClient.get<APIResponse>('/api/v1/agent/portfolio/portfolio', { address }),
+    get: (address: string) =>
+      apiClient.get<APIResponse<PortfolioData>>('/api/v1/agent/portfolio', { address }),
     getInsights: (walletAddress: string, network: string = 'mantle') =>
       apiClient.post<APIResponse>('/api/v1/agent/portfolio/insights', { wallet_address: walletAddress, network }),
     quickInsights: (walletAddress: string) =>
       apiClient.post<APIResponse>('/api/v1/agent/insights/quick', null, { wallet_address: walletAddress }),
     getStatus: (taskId: string) =>
-      apiClient.get<APIResponse>(`/api/v1/agent/portfolio/status/${taskId}`),
+      apiClient.get<TaskStatus<PortfolioAsset[]>>(`/api/v1/agent/status/portfolio/${taskId}`),
     health: () => apiClient.get<{ service: string; status: string }>('/api/v1/agent/health'),
   },
 
   // Market Data
   market: {
     getData: () => apiClient.get<{ agent: string; task_id: string }>('/agent/market/market_data'),
-    getStatus: (taskId: string) => apiClient.get<APIResponse>(`/agent/market/market_data/status/${taskId}`),
+    getStatus: (taskId: string) => apiClient.get<TaskStatus>(`/agent/market/market_data/status/${taskId}`),
   },
 
-  // Alerts
+  // Alerts & Monitoring API
   alerts: {
-    list: (walletAddress?: string, limit: number = 50) =>
-      apiClient.get<APIResponse>('/api/alerts/alerts', { wallet_address: walletAddress, limit }),
-    getUndelivered: (walletAddress: string) =>
-      apiClient.get<APIResponse>('/api/alerts/undelivered', { wallet_address: walletAddress }),
-    markDelivered: (alertId: string, walletAddress: string, deliveryMethod: string) =>
-      apiClient.post<APIResponse>(`/api/alerts/mark-delivered/${alertId}`, null, { wallet_address: walletAddress, delivery_method: deliveryMethod }),
-    coordinate: (walletAddress: string, analysisTypes?: string[]) =>
-      apiClient.post<APIResponse>('/api/alerts/coordinate', null, { 
-        wallet_address: walletAddress, 
-        analysis_types: analysisTypes?.join(',') 
+    // 1. Add Wallet to Tracking (POST /api/alerts/add/track-wallet)
+    addTrackWallet: (walletAddress: string) =>
+      apiClient.post<APIResponse>(`/api/alerts/add/track-wallet?wallet_address=${walletAddress}`),
+
+    // 2. Remove Wallet from Tracking (DELETE /api/alerts/remove/track-wallet)
+    removeTrackWallet: (walletAddress: string) =>
+      apiClient.delete<APIResponse>(`/api/alerts/remove/track-wallet?wallet_address=${walletAddress}`),
+
+    // 3. Fetch Alerts (GET /api/alerts/fetch)
+    fetchAlerts: (walletAddress?: string, limit: number = 50) =>
+      apiClient.get<APIResponse>(`/api/alerts/fetch`, {
+        wallet_address: walletAddress,
+        limit
       }),
-    batch: (walletAddresses: string[]) =>
-      apiClient.post<APIResponse>('/api/alerts/batch', null, { wallet_addresses: walletAddresses.join(',') }),
-    getTaskStatus: (taskId: string) =>
-      apiClient.get<APIResponse>(`/api/alerts/task-status/${taskId}`),
-    // Wallet Tracking
-    trackWallet: (walletAddress: string) =>
-      apiClient.post<APIResponse>('/api/alerts/track-wallet', null, { wallet_address: walletAddress }),
-    untrackWallet: (walletAddress: string) =>
-      apiClient.delete<APIResponse>(`/api/alerts/track-wallet?wallet_address=${walletAddress}`),
-    getTrackedWallets: () =>
-      apiClient.get<APIResponse>('/api/alerts/tracked-wallets'),
-    triggerManualCheck: () =>
-      apiClient.post<APIResponse>('/api/alerts/manual-monitoring'),
+
+    // 4. Fetch Undelivered Alerts (GET /api/alerts/undelivered)
+    fetchUndelivered: (walletAddress: string) =>
+      apiClient.get<APIResponse>(`/api/alerts/undelivered`, { wallet_address: walletAddress }),
+
+    // 5. Mark Alert as Delivered (POST /api/alerts/mark-delivered/{alert_id})
+    markDelivered: (alertId: string, walletAddress: string, deliveryMethod: string) =>
+      apiClient.post<APIResponse>(`/api/alerts/mark-delivered/${alertId}?wallet_address=${walletAddress}&delivery_method=${deliveryMethod}`),
+
+    // 6. Fetch Tracked Wallets (GET /api/alerts/fetch/tracked-wallets)
+    fetchTrackedWallets: () =>
+      apiClient.get<APIResponse>('/api/alerts/fetch/tracked-wallets'),
+
+    // Legacy/Internal helpers (can be kept if needed but focusing on the 6 above)
+    coordinate: (walletAddress: string, analysisTypes?: string[]) =>
+      apiClient.post<APIResponse>('/api/alerts/coordinate', null, {
+        wallet_address: walletAddress,
+        analysis_types: analysisTypes?.join(',')
+      }),
     health: () =>
       apiClient.get<APIResponse>('/api/alerts/health'),
   },
 
-  // Yield Opportunities
-  yield: {
-    get: () => apiClient.get<{ agent: string; task_id: string }>('/agent/yield/yield'),
-    getStatus: (taskId: string) => apiClient.get<APIResponse>(`/agent/yield/yield/status/${taskId}`),
-  },
 
   // Risk Analysis
   risk: {
     analyze: (walletAddress: string, marketCorrelation?: number) =>
       apiClient.post<APIResponse>('/api/agent/risk/analyze', null, { wallet_address: walletAddress, market_correlation: marketCorrelation }),
-    getStatus: (taskId: string) => apiClient.get<APIResponse>(`/api/agent/risk/status/${taskId}`),
+    getStatus: (taskId: string) => apiClient.get<TaskStatus>(`/api/agent/risk/status/${taskId}`),
     auditCheck: (walletAddress: string, network: string = 'mantle') =>
       apiClient.post<APIResponse>('/api/agent/risk/audit-check', { wallet_address: walletAddress, network }),
     protocol: (protocolName: string) =>
@@ -244,7 +255,7 @@ export const api = {
   social: {
     analyze: (timeframe: string = '24h') =>
       apiClient.post<APIResponse>('/agent/social/analyze', null, { timeframe }),
-    getStatus: (taskId: string) => apiClient.get<APIResponse>(`/agent/social/status/${taskId}`),
+    getStatus: (taskId: string) => apiClient.get<TaskStatus>(`/agent/social/status/${taskId}`),
     sentiment: (tokenSymbol: string) =>
       apiClient.post<APIResponse>('/agent/social/sentiment', null, { token_symbol: tokenSymbol }),
     narratives: (tokenSymbol: string) => apiClient.get<APIResponse>(`/agent/social/narratives/${tokenSymbol}`),
@@ -259,15 +270,15 @@ export const api = {
     get: () => apiClient.get<{ agent: string; task_id: string }>('/api/agent/onchain/'),
     protocols: () => apiClient.get<APIResponse>('/api/agent/onchain/protocols'),
     transactions: (walletAddress: string) =>
-      apiClient.get<APIResponse>('/api/agent/onchain/transactions', { wallet_address: walletAddress }),
-    getStatus: (taskId: string) => apiClient.get<APIResponse>(`/api/agent/onchain/status/${taskId}`),
+      apiClient.get<APIResponse<{ task_id: string; check_status: string }>>('/api/agent/onchain/transactions', { wallet_address: walletAddress }),
+    getStatus: (taskId: string) => apiClient.get<TaskStatus<Transaction[]>>(`/api/agent/onchain/status/${taskId}`),
   },
 
   // Whale Tracking (Note: Whale router needs to be mounted in backend main.py)
   whale: {
     track: (timeframe: string = '24h', minValueUsd: number = 100000) =>
       apiClient.post<APIResponse>('/agent/whale/track', null, { timeframe, min_value_usd: minValueUsd }),
-    getStatus: (taskId: string) => apiClient.get<APIResponse>(`/agent/whale/status/${taskId}`),
+    getStatus: (taskId: string) => apiClient.get<TaskStatus>(`/agent/whale/status/${taskId}`),
     health: () => apiClient.get<APIResponse>('/agent/whale/whale'),
   },
 
@@ -323,6 +334,18 @@ export const api = {
     get: () => apiClient.get<TaskResponse>('/agent/research/research'),
     getStatus: (taskId: string) => apiClient.get<TaskStatus>(`/agent/research/research/status/${taskId}`),
   },
+
+  // Yield Intelligence
+  yield: {
+    start: () => apiClient.get<TaskResponse>('/agent/yield', {
+      cache: 'no-store',
+      next: { revalidate: 0 }
+    }),
+    getStatus: (taskId: string) => apiClient.get<TaskStatus<any[]>>(`/agent/yield/status/${taskId}`, {
+      cache: 'no-store',
+      next: { revalidate: 0 }
+    }),
+  },
 };
 
 // ============= Task Polling Helper =============
@@ -350,12 +373,12 @@ export async function pollTaskStatus<T>(
         const response = await getStatusFn(taskId);
         const status = 'data' in response ? response.data : response;
 
-        if (status.status === 'success' || status.status === 'SUCCESS') {
+        if (status.status?.toLowerCase() === 'success' || status.status?.toLowerCase() === 'completed') {
           resolve(status.result as T);
           return;
         }
 
-        if (status.status === 'failure' || status.status === 'FAILURE') {
+        if (status.status?.toLowerCase() === 'failure' || status.status?.toLowerCase() === 'failed') {
           reject(new Error(status.error || 'Task failed'));
           return;
         }

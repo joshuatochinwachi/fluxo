@@ -11,6 +11,7 @@ export interface Asset {
   percentage: number;
   price?: number;
   change_24h?: number;
+  pnl_24h_pct?: number;
 }
 
 export interface Portfolio {
@@ -21,16 +22,58 @@ export interface Portfolio {
   timestamp: string;
 }
 
-export interface Alert {
+export interface Transaction {
   id: string;
-  type: 'price' | 'whale' | 'risk' | 'yield' | 'social' | 'portfolio';
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  type: 'sent' | 'received' | 'swap' | 'other';
+  tx_hash: string;
+  from: string;
+  to: string;
+  value: number;
+  amount: number;
+  token: string;
+  tokenSymbol: string;
+  transaction_time: string;
+  timestamp: string;
+  value_usd: number;
+  transaction_name?: string;
+}
+
+export interface Alert {
+  alert_id: string;
+  wallet_address: string;
   title: string;
   message: string;
+  overall_severity: 'low' | 'medium' | 'high' | 'critical';
   timestamp: string;
   delivered: boolean;
-  wallet_address?: string;
-  data?: Record<string, unknown>;
+
+  // Analysis specific fields
+  risk_level?: 'low' | 'medium' | 'high' | 'critical';
+  risk_score?: number;
+  market_condition?: string;
+  total_alerts_triggered?: number;
+  analyses_completed?: string[];
+  recommendations?: string[];
+
+  // Nested data
+  agent_sections?: AlertAgentSection[];
+  risk_factors?: Record<string, number>;
+}
+
+export interface AlertAgentSection {
+  agent_name: string;
+  section_title: string;
+  message: string;
+  severity: string;
+  key_metrics?: Record<string, any>;
+  items?: any[];
+}
+
+export interface TrackedWallet {
+  wallet_address: string;
+  total_tracked?: number;
+  monitoring_interval?: string;
+  next_check?: string;
 }
 
 export interface RiskAnalysis {

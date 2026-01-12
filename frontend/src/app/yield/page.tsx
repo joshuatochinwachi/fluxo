@@ -59,8 +59,8 @@ export default function YieldPage() {
       return a.risk_score - b.risk_score;
     });
 
-  const avgApy = yields.length > 0 
-    ? yields.reduce((sum: number, y: YieldOpportunity) => sum + y.apy, 0) / yields.length 
+  const avgApy = yields.length > 0
+    ? yields.reduce((sum: number, y: YieldOpportunity) => sum + y.apy, 0) / yields.length
     : 0;
   const totalTvl = yields.reduce((sum: number, y: YieldOpportunity) => sum + y.tvl, 0);
   const protocolCount = new Set(yields.map((y: YieldOpportunity) => y.protocol)).size;
@@ -147,16 +147,16 @@ export default function YieldPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-500" />
-              <p className="text-sm text-muted-foreground">Protocols</p>
+              <p className="text-sm text-muted-foreground">Total Options</p>
             </div>
-            <p className="text-2xl font-bold mt-2">{protocolCount}</p>
+            <p className="text-2xl font-bold mt-2">{yields.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
-              <p className="text-sm text-muted-foreground">Low Risk Pools</p>
+              <p className="text-sm text-muted-foreground">Low Risk Options</p>
             </div>
             <p className="text-2xl font-bold mt-2">{lowRiskCount}</p>
           </CardContent>
@@ -168,7 +168,7 @@ export default function YieldPage() {
         <CardHeader>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>Available Pools</CardTitle>
+              <CardTitle>Available Opportunities</CardTitle>
               <CardDescription>DeFi yield opportunities sorted by {sortBy.toUpperCase()}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -221,7 +221,7 @@ export default function YieldPage() {
                   return (
                     <div
                       key={`${opportunity.protocol}-${opportunity.pool}-${index}`}
-                      className="p-4 rounded-lg border border-border/50 transition-colors hover:bg-muted/50"
+                      className="p-4 rounded-lg border border-border/50 list-item-glass"
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-center gap-4">
@@ -260,7 +260,6 @@ export default function YieldPage() {
                               {risk.label}
                             </Badge>
                           </div>
-                          <Button size="sm">Deposit</Button>
                         </div>
                       </div>
                       {opportunity.risk_score >= 6 && (

@@ -16,13 +16,14 @@ import {
   Tooltip,
 } from 'recharts';
 import { Asset } from '@/types';
-import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { formatCurrency, formatPercentage, cn } from '@/lib/utils';
 
 interface PortfolioChartProps {
   assets: Asset[];
   totalValue: number;
   loading?: boolean;
   className?: string;
+  title?: string;
 }
 
 // Fluxo brand-compliant color palette (purples only)
@@ -42,19 +43,60 @@ export function PortfolioChart({
   totalValue,
   loading = false,
   className,
+  title = "Portfolio Allocation",
 }: PortfolioChartProps) {
-  const chartData = assets.map((asset, index) => ({
-    name: asset.token_symbol,
-    value: asset.value_usd,
-    percentage: asset.percentage,
-    fill: COLORS[index % COLORS.length],
-  }));
+  // Process chart data: Sort and Group
+  const chartData = (() => {
+    if (!assets || assets.length === 0) return [];
+
+    // 1. Sort by value descending
+    const sorted = [...assets].sort((a, b) => b.value_usd - a.value_usd);
+
+    // 2. Identify top 6 assets
+    const topAssets = sorted.slice(0, 6);
+    const otherAssets = sorted.slice(6);
+
+    // 3. Further group if an asset is < 2% of total value
+    const finalTop: any[] = [];
+    const grouped: any[] = [];
+
+    topAssets.forEach(asset => {
+      const pct = totalValue > 0 ? (asset.value_usd / totalValue) * 100 : 0;
+      if (pct < 2 && finalTop.length > 2) {
+        grouped.push(asset);
+      } else {
+        finalTop.push({
+          name: asset.token_symbol,
+          value: asset.value_usd,
+          percentage: pct,
+        });
+      }
+    });
+
+    grouped.push(...otherAssets);
+
+    const data = [...finalTop];
+
+    if (grouped.length > 0) {
+      const othersValue = grouped.reduce((sum, a) => sum + a.value_usd, 0);
+      data.push({
+        name: 'Others',
+        value: othersValue,
+        percentage: totalValue > 0 ? (othersValue / totalValue) * 100 : 0,
+      });
+    }
+
+    return data.map((item, index) => ({
+      ...item,
+      fill: COLORS[index % COLORS.length],
+    }));
+  })();
 
   if (loading) {
     return (
-      <Card className={className}>
+      <Card className={cn(className, "chart-glass")}>
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-space-grotesk)]">Portfolio Allocation</CardTitle>
+          <CardTitle className="font-[family-name:var(--font-space-grotesk)]">{title}</CardTitle>
           <CardDescription>Asset distribution by value</CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,32 +109,32 @@ export function PortfolioChart({
   }
 
   return (
-    <Card className={className}>
+    <Card className={cn(className, "chart-glass")}>
       <CardHeader>
-        <CardTitle className="font-[family-name:var(--font-space-grotesk)]">Portfolio Allocation</CardTitle>
+        <CardTitle className="font-[family-name:var(--font-space-grotesk)]">{title}</CardTitle>
         <CardDescription>
           Total Value: {formatCurrency(totalValue)}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {assets.length === 0 ? (
+        {chartData.length === 0 ? (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
             No assets found
           </div>
         ) : (
-          <div className="h-[300px]">
+          <div className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={chartData}
                   cx="50%"
-                  cy="50%"
+                  cy="45%"
                   innerRadius={60}
                   outerRadius={100}
                   paddingAngle={2}
                   dataKey="value"
                 >
-                  {chartData.map((entry, index) => (
+                  {chartData.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
@@ -102,11 +144,11 @@ export function PortfolioChart({
                       const data = payload[0].payload;
                       return (
                         <div className="rounded-lg border bg-background p-3 shadow-md">
-                          <p className="font-medium">{data.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-medium text-purple-400">{data.name}</p>
+                          <p className="text-sm font-bold">
                             {formatCurrency(data.value)}
                           </p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             {formatPercentage(data.percentage, 1).replace('+', '')}
                           </p>
                         </div>
@@ -116,8 +158,22 @@ export function PortfolioChart({
                   }}
                 />
                 <Legend
-                  formatter={(value: string) => (
-                    <span className="text-sm text-foreground">{value}</span>
+                  verticalAlign="bottom"
+                  height={120}
+                  content={({ payload }) => (
+                    <ul className="flex flex-wrap justify-center gap-x-4 gap-y-2 pt-4">
+                      {payload?.map((entry: any, index: number) => (
+                        <li key={`item-${index}`} className="flex items-center gap-2">
+                          <div
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: entry.color }}
+                          />
+                          <span className="text-xs font-medium text-foreground whitespace-nowrap">
+                            {entry.value}: {formatPercentage(chartData[index].percentage, 1).replace('+', '')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 />
               </PieChart>
