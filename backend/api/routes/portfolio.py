@@ -6,6 +6,9 @@ from typing import Dict
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import logging
+import json
+import time
+from functools import wraps
 
 from celery.result import AsyncResult
 from core import celery_app
@@ -20,8 +23,53 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# --- In-Memory Cache Implementation ---
+class InMemoryCache:
+    def __init__(self):
+        self.cache = {}
+        self.default_ttl = 300  # 5 minutes default
+
+    def get(self, key):
+        if key in self.cache:
+            data, timestamp = self.cache[key]
+            if time.time() - timestamp < self.default_ttl:
+                return data
+            else:
+                del self.cache[key]
+        return None
+
+    def set(self, key, value, ttl=None):
+        expiry = ttl if ttl is not None else self.default_ttl
+        self.cache[key] = (value, time.time())
+
+local_cache = InMemoryCache()
+
+def cache_endpoint(ttl=300):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            key_parts = [func.__name__]
+            for k, v in sorted(kwargs.items()):
+                if hasattr(v, 'model_dump_json'):
+                    key_parts.append(f"{k}:{v.model_dump_json()}")
+                elif hasattr(v, 'dict'):
+                    key_parts.append(f"{k}:{json.dumps(v.dict(), default=str)}")
+                else:
+                    key_parts.append(f"{k}:{str(v)}")
+            cache_key = "|".join(key_parts)
+            
+            if (cached := local_cache.get(cache_key)):
+                return cached
+            
+            result = await func(*args, **kwargs)
+            local_cache.set(cache_key, result, ttl=ttl)
+            return result
+        return wrapper
+    return decorator
+# --------------------------------------
 
 @router.get('/portfolio')
+@cache_endpoint(ttl=60)
 async def portfolio(address: str)->APIResponse:
     from tasks.agent_tasks.portfolio_task import fetch_portfolio
     # portf = portfolio_agent()
@@ -52,6 +100,7 @@ async def get_portfolio_result(task_id: str):
 # ============= NEW AI INSIGHTS ENDPOINTS (ADD THESE) =============
 
 @router.post('/insights')
+@cache_endpoint(ttl=300)
 async def generate_portfolio_insights(
     portfolio: PortfolioInput,
     include_social: bool = Query(True, description="Include social sentiment analysis"),
@@ -110,6 +159,7 @@ async def generate_portfolio_insights(
 
 
 @router.post('/insights/quick')
+@cache_endpoint(ttl=300)
 async def quick_portfolio_insights(
     wallet_address: str = Query(..., description="Wallet address to analyze")
 ):

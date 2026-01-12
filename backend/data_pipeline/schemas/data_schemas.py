@@ -28,6 +28,7 @@ class UserPortfolio:
     balance: float
     value_usd:float
     price_usd: float
+    pnl_24h_pct:float
     percentage_of_portfolio:float
 
 @dataclass

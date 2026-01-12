@@ -10,7 +10,7 @@ from eth_utils import to_checksum_address
 class DuneService:
     def __init__(self):
         self.settings = Settings()
-
+   
     """
         Use dune sim api to implement portfolio analysis
     """
@@ -53,12 +53,18 @@ class DuneService:
         token_balance_percentage = self._balance_porfolio_percentage(user_token_baLances)
         user_portfolio = []
         for balance in user_token_baLances:
+            price_24h_pct = await self.calculate_24h_changes(
+                balance.get('address'),
+                int(balance.get('amount',0)) / (10 ** balance.get('decimals', 18)),
+                balance.get('value_usd')
+                )
             token_data = {
                 'token_address': balance.get('address'),
                 'token_symbol': balance.get('symbol'),
                 'balance': int(balance.get('amount',0)) / (10 ** balance.get('decimals', 18)),
                 'value_usd': balance.get('value_usd'),
                 'price_usd': balance.get('price_usd'),
+                'pnl_24h_pct':price_24h_pct,
                 'percentage_of_portfolio': token_balance_percentage.get(balance.get('address'),0)
             }
             user_portfolio.append(token_data)
@@ -94,21 +100,72 @@ class DuneService:
                     return self._parse_token_data(data,token_address)
         except:
             return None
+
+     
+    # 'https://api.sim.dune.com/v1/evm/token-info/0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca?chain_ids=8453&historical_prices=24
+    async def calculate_24h_changes(self,token_address:str,asset_holdings:int|str,current_asset_value:int|str):
+        try:
+            price_24hr = await self.hist_token_data(token_address)
+            if not price_24hr:
+                return 0
+
+            price_24hr = price_24hr.get('price_24h',0)
+            value_24h_ago = float(asset_holdings) * float(price_24hr)
+
+            pnl_24h = float(current_asset_value) - value_24h_ago
+            pnl_24h_pct = pnl_24h / value_24h_ago
+            return pnl_24h_pct * 100
+        except Exception as e:
+            return 0
+
+    async def hist_token_data(self, token_address: str) -> dict:
+        if token_address == 'native':
+            token_address = '0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8' # mnt
+
+        token_address = to_checksum_address(token_address)
+        url = DUNE_SERVICE_ENDPOINTS['token_info'] + f"/{token_address}"
+        headers = {
+            "X-Sim-Api-Key":self.settings.dune_api_key
+        }
+        params = {
+            'chain_ids':5000,  #  Mantle Chain ID
+            'historical_prices':24
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url,headers=headers,params=params) as response:
+                    if response.status != 200:
+                        return
+                    data = await response.json()
+                    return self._parse_token_data(data,token_address,historical=True)
+        except:
+            return {}
         
-    def _parse_token_data(self,token_data:dict,token_address:str)->dict:
+        
+    def _parse_token_data(self,token_data:dict,token_address:str,historical=False)->dict:
         
         if "tokens" not in token_data:
             return None
         
         token_info = token_data['tokens'][0]
-        return {
+
+        if not historical:
+            data = {
             'token':token_address,
             'price':token_info.get('price_usd',0),
             'symbol':token_info.get('symbol','Nan'),
             'decimal':token_info.get('decimals',18),
             'total_supply':token_info.get('total_supply',0)
-        }
-    
+            }
+        else:
+            info = token_info.get('historical_prices')
+            info_data = info[0]
+            data = {
+                'price_24h':info_data.get('price_usd')
+            }
+
+        return data
+
     async def user_transactions(self, wallet_address:str):
         url = DUNE_SERVICE_ENDPOINTS['transaction'] + f"/{wallet_address}"
         headers = {

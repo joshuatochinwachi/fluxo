@@ -1,5 +1,8 @@
 import logging
 import uuid
+import time
+import json
+from functools import wraps
 from fastapi import APIRouter,WebSocket,WebSocketDisconnect,HTTPException
 from tasks.agent_tasks import onchain_task
 from tasks.agent_tasks.onchain_task import protocol_task
@@ -17,6 +20,51 @@ redis_db = redis_connect.get_connection()
 smart_money_session : dict[str, WebSocket] = {}
 
 logger = logging.getLogger(__name__)
+
+# --- In-Memory Cache Implementation ---
+class InMemoryCache:
+    def __init__(self):
+        self.cache = {}
+        self.default_ttl = 300  # 5 minutes default
+
+    def get(self, key):
+        if key in self.cache:
+            data, timestamp = self.cache[key]
+            if time.time() - timestamp < self.default_ttl:
+                return data
+            else:
+                del self.cache[key]
+        return None
+
+    def set(self, key, value, ttl=None):
+        expiry = ttl if ttl is not None else self.default_ttl
+        self.cache[key] = (value, time.time())
+
+local_cache = InMemoryCache()
+
+def cache_endpoint(ttl=300):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            key_parts = [func.__name__]
+            for k, v in sorted(kwargs.items()):
+                if hasattr(v, 'model_dump_json'):
+                    key_parts.append(f"{k}:{v.model_dump_json()}")
+                elif hasattr(v, 'dict'):
+                    key_parts.append(f"{k}:{json.dumps(v.dict(), default=str)}")
+                else:
+                    key_parts.append(f"{k}:{str(v)}")
+            cache_key = "|".join(key_parts)
+            
+            if (cached := local_cache.get(cache_key)):
+                return cached
+            
+            result = await func(*args, **kwargs)
+            local_cache.set(cache_key, result, ttl=ttl)
+            return result
+        return wrapper
+    return decorator
+# --------------------------------------
 
 @router.get('/')
 async def onchain():
@@ -85,6 +133,7 @@ async def user_subscribed_tokens_update():
 
 
 @router.get('/transactions')
+@cache_endpoint(ttl=60)
 async def user_transactions(wallet_address:str):
     from tasks.agent_tasks.onchain_task import fetch_transaction
     # from agents.onchain_agent import onchain_agent
@@ -146,6 +195,3 @@ async def get_onchain_result(task_id:str):
     except Exception as e:
         logger.error(f"Failed to get task status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-

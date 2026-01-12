@@ -15,6 +15,7 @@ def transform_user_portfolio(user_portfolio_data:List,wallet_address)->List[User
                 balance=token_balance.get('balance'),
                 value_usd=token_balance.get('value_usd'),
                 price_usd=token_balance.get('price_usd'),
+                pnl_24h_pct=token_balance.get('pnl_24h_pct'),
                 percentage_of_portfolio=token_balance.get('percentage_of_portfolio')
             ))
         except Exception as e:

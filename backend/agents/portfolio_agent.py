@@ -12,7 +12,11 @@ class portfolio_agent:
     def __init__(self):
         self.redis_db = REDIS_CONNECT
         self.mongo = get_mongo_connection()
-        self.redis_db = get_redis_connection()
+        try:
+            self.redis_db = get_redis_connection()
+        except Exception as e:
+            print(f"Redis connection failed in portfolio_agent: {e}")
+            self.redis_db = None
 
     # Receives processed market data from market_agent
     async def retrieve_portfolio_data(self,wallet_address:str):
@@ -52,7 +56,10 @@ class portfolio_agent:
         pipeline = Pipeline()
         try:
             if not none_track_address:
-                tracked_wallet = await self.redis_db.smembers("tracked_wallets")
+                if self.redis_db:
+                    tracked_wallet = await self.redis_db.smembers("tracked_wallets")
+                else:
+                    tracked_wallet = []
             else:
                 tracked_wallet = [none_track_address]
             
