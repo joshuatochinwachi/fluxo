@@ -75,7 +75,7 @@ async def portfolio(address: str)->APIResponse:
     # portf = portfolio_agent()
     # task =   await portf.retrieve_portfolio_data(address)
     task = fetch_portfolio.delay(address)
-    # return {'data':'result'}
+    
     return APIResponse(
         success=True,
         message=f'User Portfolio Data',

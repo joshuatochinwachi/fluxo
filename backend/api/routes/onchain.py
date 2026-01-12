@@ -136,12 +136,7 @@ async def user_subscribed_tokens_update():
 @cache_endpoint(ttl=60)
 async def user_transactions(wallet_address:str):
     from tasks.agent_tasks.onchain_task import fetch_transaction
-    # from agents.onchain_agent import onchain_agent
-    # onchain = onchain_agent()
-    # if not wallet_address:
-    #     return {}
     
-    # task = (wallet_address)
     task = fetch_transaction.delay(wallet_address)
     return APIResponse(
         success=True,
